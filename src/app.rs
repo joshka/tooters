@@ -1,13 +1,19 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use ratatui::widgets::{Block, Borders};
-use tokio::time::sleep;
+use crossterm::event::{Event, EventStream, KeyCode};
+use futures::StreamExt;
+use ratatui::{
+    layout::{Alignment::Center, Constraint, Direction, Layout},
+    widgets::{Block, Borders, Paragraph},
+};
+use tokio::time::interval;
 
 use crate::{ui::Ui, AppResult};
 
 pub struct App {
     ui: Ui,
-    title: String,
+    title: &'static str,
+    start: Instant,
 }
 
 impl App {
@@ -16,17 +22,58 @@ impl App {
         ui.init()?;
         Ok(Self {
             ui,
-            title: String::from("Tooters"),
+            title: "Tooters",
+            start: Instant::now(),
         })
     }
 
-    pub async fn draw(mut self) -> AppResult<()> {
+    pub async fn draw(&mut self) -> AppResult<()> {
         self.ui.draw(|frame| {
             let size = frame.size();
-            let block = Block::default().borders(Borders::ALL).title(self.title);
-            frame.render_widget(block, size);
+            let layout = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Length(1), Constraint::Min(1)])
+                .split(size);
+            let block = Block::default()
+                .borders(Borders::TOP)
+                .title_alignment(Center)
+                .title(self.title);
+            frame.render_widget(block, layout[0]);
+            let output = Paragraph::new(format!("Elapsed: {:?}", self.start.elapsed().as_millis()))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title_alignment(Center)
+                        .title("Output"),
+                );
+            frame.render_widget(output, layout[1]);
         })?;
-        sleep(Duration::from_secs(5)).await;
+        Ok(())
+    }
+
+    pub async fn run(mut self) -> AppResult<()> {
+        let mut events = EventStream::new();
+        let mut interval = interval(Duration::from_millis(1000));
+        loop {
+            tokio::select! {
+                _ = interval.tick() => {
+                    self.draw().await?;
+                    if self.start.elapsed().as_secs() > 10 {
+                        break;
+                    }
+                },
+                event = events.next() => {
+                    match event {
+                        Some(Ok(Event::Key(key_event))) => {
+                            if key_event.code == KeyCode::Char('q') {
+                                break;
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+            }
+        }
         Ok(())
     }
 }
