@@ -3,8 +3,10 @@ use std::time::{Duration, Instant};
 use crossterm::event::{Event, EventStream, KeyCode};
 use futures::StreamExt;
 use ratatui::{
-    layout::{Alignment::Center, Constraint, Direction, Layout},
-    widgets::{Block, Borders, Paragraph},
+    layout::{Constraint, Direction, Layout},
+    style::{Color, Modifier, Style},
+    text::{Span, Spans},
+    widgets::Paragraph,
 };
 use tokio::time::interval;
 
@@ -12,7 +14,6 @@ use crate::{ui::Ui, AppResult};
 
 pub struct App {
     ui: Ui,
-    title: &'static str,
     start: Instant,
 }
 
@@ -22,7 +23,6 @@ impl App {
         ui.init()?;
         Ok(Self {
             ui,
-            title: "Tooters",
             start: Instant::now(),
         })
     }
@@ -34,18 +34,17 @@ impl App {
                 .direction(Direction::Vertical)
                 .constraints([Constraint::Length(1), Constraint::Min(1)])
                 .split(size);
-            let block = Block::default()
-                .borders(Borders::TOP)
-                .title_alignment(Center)
-                .title(self.title);
-            frame.render_widget(block, layout[0]);
-            let output = Paragraph::new(format!("Elapsed: {:?}", self.start.elapsed().as_millis()))
-                .block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .title_alignment(Center)
-                        .title("Output"),
-                );
+            let title_bar = Paragraph::new(Spans::from(vec![
+                Span::styled("Tooters", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(" | "),
+                Span::styled("Press q to quit", Style::default().fg(Color::Gray)),
+            ]))
+            .style(Style::default().fg(Color::White).bg(Color::Blue));
+            frame.render_widget(title_bar, layout[0]);
+            let output = Paragraph::new(format!(
+                "Elapsed: {:?} millis",
+                self.start.elapsed().as_millis()
+            ));
             frame.render_widget(output, layout[1]);
         })?;
         Ok(())
