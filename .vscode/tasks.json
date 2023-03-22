@@ -8,8 +8,7 @@
 				"$rustc"
 			],
 			"group": {
-				"kind": "build",
-				"isDefault": true
+				"kind": "build"
 			},
 			"label": "rust: cargo build",
 			"presentation": {
@@ -19,7 +18,57 @@
 				"focus": true,
 				"panel": "shared",
 				"showReuseMessage": true,
-				"clear": true,
+				"clear": true
+			}
+		},
+		{
+			"type": "cargo",
+			"command": "run",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"label": "rust: cargo run",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"revealProblems": "never",
+				"focus": true,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": true
+			},
+			"options": {
+				"env": {
+					"RUST_BACKTRACE": "1"
+				}
+			}
+		},
+		{
+			"type": "cargo",
+			"command": "watch",
+			"args": [
+				"--exec",
+				"lclippy",
+				"--clear"
+			],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"group": {
+				"kind": "build",
+			},
+			"label": "rust: cargo clippy",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"revealProblems": "onProblem",
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": true
 			}
 		}
 	]
