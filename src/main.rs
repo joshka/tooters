@@ -1,9 +1,8 @@
-use tooters::{app::App, AppResult};
+use tooters::app::{self, AppResult};
 
 #[tokio::main]
 async fn main() -> AppResult<()> {
-    // femme::with_level(log::LevelFilter::Trace);
-    let app = App::new()?;
-    app.run().await?;
+    console_subscriber::init();
+    app::run().await?;
     Ok(())
 }

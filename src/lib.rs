@@ -1,11 +1,6 @@
-use std::error;
-
-pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
+use std::time::Duration;
 
 pub mod app;
-pub mod ui;
-pub mod initial_view;
-pub mod logged_in_view;
+pub mod view;
 
-#[cfg(test)]
-extern crate tempfile;
+const TICK_DURATION: Duration = Duration::from_millis(250);

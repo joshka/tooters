@@ -14,7 +14,7 @@ impl View for LoggedInView {
     fn title(&self) -> String {
         format!("Logged in as @{}", self.username)
     }
-    async fn run(self) {
-        
+    async fn run(&mut self) {
+        println!("Logged in as @{}", self.username)
     }
 }

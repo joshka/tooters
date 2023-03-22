@@ -1,117 +1,185 @@
-use std::time::{Duration, Instant};
-
-use async_trait::async_trait;
-use crossterm::event::{Event, EventStream, KeyCode};
+use crossterm::event::{KeyEvent, EventStream, KeyCode, KeyModifiers};
 use futures::StreamExt;
-use ratatui::{
-    layout::{Constraint, Direction, Layout},
-    style::{Color, Modifier, Style},
-    text::{Span, Spans},
-    widgets::Paragraph,
-};
 use tokio::{sync::mpsc, time::interval};
 
-use crate::{initial_view::IntitialView, ui::Ui, AppResult, logged_in_view::LoggedInView};
+use crate::view::{LoginView, View};
+
+pub async fn run() -> AppResult<()> {
+    let mut app = App::new();
+    crossterm::terminal::enable_raw_mode()?;
+    let mut key_events = EventStream::new();
+    loop {
+        tokio::select! {
+            _ = app.run() => {
+                println!("App exited");
+                break;
+            }
+            Some(Ok(crossterm::event::Event::Key(key_event))) = key_events.next() => {
+                match (key_event.modifiers, key_event.code) {
+                    (crossterm::event::KeyModifiers::CONTROL, KeyCode::Char('c')) |
+                    (KeyModifiers::NONE, KeyCode::Char('q'))
+                    => {
+                        app.tx.send(Event::Quit).await?;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    crossterm::terminal::disable_raw_mode()?;
+    Ok(())
+}
+
+pub type AppResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+#[derive(Debug, PartialEq)]
+pub enum Event {
+    Tick,
+    Start,
+    Quit,
+    Key(KeyEvent),
+    LoggedIn,
+    LoggedOut,
+}
 
 pub struct App {
-    ui: Ui,
-    start: Instant,
-    current_view: Box<dyn View>,
-    rx: mpsc::Receiver<AppEvent>,
-    tx: mpsc::Sender<AppEvent>,
+    rx: mpsc::Receiver<Event>,
+    tx: mpsc::Sender<Event>,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl App {
-    pub fn new() -> AppResult<Self> {
+    pub fn new() -> App {
         let (tx, rx) = mpsc::channel(100);
-        let mut ui = Ui::new()?;
-        ui.init()?;
-        Ok(Self {
-            ui,
-            start: Instant::now(),
-            current_view: Box::new(IntitialView::new(tx.clone())),
-            rx,
-            tx,
-        })
+        Self { rx, tx }
     }
 
-    pub async fn draw(&mut self) -> AppResult<()> {
-        self.ui.draw(|frame| {
-            let size = frame.size();
-            let layout = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(1),
-                    Constraint::Min(1),
-                    Constraint::Length(1),
-                ])
-                .split(size);
-
-            let title = self.current_view.title();
-            let text = Spans::from(vec![
-                Span::styled("Tooters", Style::default().add_modifier(Modifier::BOLD)),
-                Span::raw(" | "),
-                Span::styled(title, Style::default().fg(Color::Gray)),
-            ]);
-            let title_bar =
-                Paragraph::new(text).style(Style::default().fg(Color::White).bg(Color::Blue));
-            frame.render_widget(title_bar, layout[0]);
-
-            let output = Paragraph::new(format!(
-                "Elapsed: {:?} millis",
-                self.start.elapsed().as_millis()
-            ));
-            frame.render_widget(output, layout[1]);
-        })?;
+    pub async fn run(&mut self) -> AppResult<()> {
+        self.start().await?;
+        self.handle_events().await?;
+        self.drain_events().await?;
         Ok(())
     }
 
-    pub async fn run(mut self) -> AppResult<()> {
-        let mut events = EventStream::new();
-        let mut interval = interval(Duration::from_millis(1000));
-        loop {
-            tokio::select! {
-                _ = interval.tick() => {
-                    self.draw().await?;
-                },
-                event = events.next() => {
-                    match event {
-                        Some(Ok(Event::Key(key_event))) => {
-                            if key_event.code == KeyCode::Char('q') {
-                                self.tx.send(AppEvent::Quit).await?;
-                            }
-                        },
-                        _ => {}
-                    }
-                },
-                event = self.rx.recv() => {
-                    match event {
-                        Some(AppEvent::Quit) => break,
-                        Some(AppEvent::LoggedIn(username)) => {
-                            self.current_view = Box::new(LoggedInView::new(username));
-                        },
-                        Some(AppEvent::LoggedOut(_message)) => {
-                            // self.current_view = Box::new(LoggedOutView::new(message));
-                        },
-                        None => break,
-                    }
+    async fn start(&self) -> AppResult<()> {
+        let tx = self.tx.clone();
+        tokio::spawn(async move {
+            let mut interval = interval(crate::TICK_DURATION);
+            loop {
+                interval.tick().await;
+                if let Err(err) = tx.send(Event::Tick).await {
+                    eprintln!("Error sending tick: {}", err);
                 }
+            }
+        });
+        self.tx.send(Event::Start).await?;
+        Ok(())
+    }
 
+    async fn drain_events(&mut self) -> AppResult<()> {
+        self.rx.close();
+        while (self.rx.recv().await).is_some() {}
+        Ok(())
+    }
+
+    async fn handle_events(&mut self) -> AppResult<()> {
+        while let Some(event) = self.rx.recv().await {
+            match event {
+                Event::Tick => {
+                    println!("Tick");
+                }
+                Event::Quit => {
+                    println!("Quit");
+                    break;
+                }
+                Event::Start => {
+                    println!("Start");
+                    let view = View::Login(LoginView::new(self.tx.clone()));
+                    view.run().await;
+                }
+                Event::LoggedOut => {
+                    println!("Logged out");
+                }
+                Event::LoggedIn => {
+                    println!("Logged in");
+                }
+                Event::Key(event) => {
+                    println!("Key: {:?}", event);
+                },
             }
         }
         Ok(())
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum AppEvent {
-    Quit,
-    LoggedIn(String),
-    LoggedOut(String),
-}
+// pub async fn run(&mut self) -> AppResult<()> {
+//     // let mut events = EventStream::new();
+//     // let mut interval = interval(Duration::from_millis(1000));
+//     // let handle = self.current_view.run();
+//     // tokio::spawn(async move { handle.await; });
+//     loop {
+//         tokio::select! {
+//             _ = interval.tick() => {
+//                 self.draw().await?;
+//             },
+//             event = events.next() => {
+//                 if let Some(Ok(Event::Key(key_event))) = event {
+//                     if key_event.code == KeyCode::Char('q') {
+//                         self.tx.send(Event::Quit).await?;
+//                     }
+//                 }
+//             },
+//             app_event = self.rx.recv() => {
+//                 match app_event {
+//                     Some(Event::Quit) => break,
+//                     Some(Event::LoggedIn(username)) => {
+//                         self.current_view = Box::new(LoggedInView::new(username));
+//                         self.start = Instant::now();
+//                     },
+//                     Some(Event::LoggedOut(reason)) => {
+//                         self.current_view = Box::new(LoggedOutView::new(reason));
+//                         self.start = Instant::now();
+//                     },
+//                     None => break,
+//                 }
+//             }
+//         }
+//     }
+//     Ok(())
+// }
 
-#[async_trait]
-pub(crate) trait View {
-    fn title(&self) -> String;
-    async fn run(self);
-}
+// pub async fn draw(&mut self) -> AppResult<()> {
+//     self.ui.draw(|frame| {
+//         let size = frame.size();
+//         let layout = Layout::default()
+//             .direction(Direction::Vertical)
+//             .constraints([
+//                 Constraint::Length(1),
+//                 Constraint::Min(1),
+//                 Constraint::Length(1),
+//             ])
+//             .split(size);
+
+//         let text = Spans::from(vec![
+//             Span::styled("Tooters", Style::default().add_modifier(Modifier::BOLD)),
+//             Span::raw(" | "),
+//             Span::styled(self.current_view.title(), Style::default().fg(Color::Gray)),
+//         ]);
+//         let title_bar =
+//             Paragraph::new(text).style(Style::default().fg(Color::White).bg(Color::Blue));
+//         frame.render_widget(title_bar, layout[0]);
+
+//         let output = Paragraph::new(format!(
+//             "Elapsed: {:?} millis",
+//             self.start.elapsed().as_millis()
+//         ));
+//         frame.render_widget(output, layout[1]);
+//     })?;
+//     Ok(())
+// }
+// }
