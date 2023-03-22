@@ -1,11 +1,12 @@
 use crossterm::event::{KeyEvent, EventStream, KeyCode, KeyModifiers};
 use futures::StreamExt;
+use ratatui::{layout::{Direction, Constraint, Layout}, style::{Modifier, Style, Color}, text::{Spans, Span}, widgets::Paragraph};
 use tokio::{sync::mpsc, time::interval};
 
-use crate::view::{LoginView, View};
+use crate::{view::{LoginView, View}, ui::Ui};
 
 pub async fn run() -> AppResult<()> {
-    let mut app = App::new();
+    let mut app = App::new()?;
     crossterm::terminal::enable_raw_mode()?;
     let mut key_events = EventStream::new();
     loop {
@@ -21,7 +22,9 @@ pub async fn run() -> AppResult<()> {
                     => {
                         app.tx.send(Event::Quit).await?;
                     }
-                    _ => {}
+                    _ => {
+                        app.tx.send(Event::Key(key_event)).await?;
+                    }
                 }
             }
         }
@@ -32,7 +35,7 @@ pub async fn run() -> AppResult<()> {
 
 pub type AppResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum Event {
     Tick,
     Start,
@@ -45,18 +48,22 @@ pub enum Event {
 pub struct App {
     rx: mpsc::Receiver<Event>,
     tx: mpsc::Sender<Event>,
+    ui: Ui,
+    title: String,
 }
 
 impl Default for App {
     fn default() -> Self {
-        Self::new()
+        Self::new().unwrap()
     }
 }
 
 impl App {
-    pub fn new() -> App {
+    pub fn new() -> AppResult<App> {
         let (tx, rx) = mpsc::channel(100);
-        Self { rx, tx }
+        let mut ui = Ui::new()?;
+        ui.init()?;
+        Ok(Self { rx, tx, ui, title: "".to_string() })
     }
 
     pub async fn run(&mut self) -> AppResult<()> {
@@ -91,95 +98,49 @@ impl App {
         while let Some(event) = self.rx.recv().await {
             match event {
                 Event::Tick => {
-                    println!("Tick");
+                    self.draw()?;
                 }
                 Event::Quit => {
-                    println!("Quit");
                     break;
                 }
                 Event::Start => {
-                    println!("Start");
                     let view = View::Login(LoginView::new(self.tx.clone()));
+                    self.title = "Login".to_string();
                     view.run().await;
                 }
                 Event::LoggedOut => {
-                    println!("Logged out");
                 }
                 Event::LoggedIn => {
-                    println!("Logged in");
                 }
-                Event::Key(event) => {
-                    println!("Key: {:?}", event);
+                Event::Key(_event) => {
                 },
             }
         }
         Ok(())
     }
+
+    fn draw(&mut self) -> AppResult<()> {
+        let title = &self.title;
+        self.ui.draw(|frame| {
+            let size = frame.size();
+            let layout = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(1),
+                    Constraint::Min(1),
+                    Constraint::Length(1),
+                ])
+                .split(size);
+
+            let text = Spans::from(vec![
+                Span::styled("Tooters", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(" | "),
+                Span::styled(title, Style::default().fg(Color::Gray)),
+            ]);
+            let title_bar =
+                Paragraph::new(text).style(Style::default().fg(Color::White).bg(Color::Blue));
+            frame.render_widget(title_bar, layout[0]);
+        })?;
+        Ok(())
+    }
 }
-
-// pub async fn run(&mut self) -> AppResult<()> {
-//     // let mut events = EventStream::new();
-//     // let mut interval = interval(Duration::from_millis(1000));
-//     // let handle = self.current_view.run();
-//     // tokio::spawn(async move { handle.await; });
-//     loop {
-//         tokio::select! {
-//             _ = interval.tick() => {
-//                 self.draw().await?;
-//             },
-//             event = events.next() => {
-//                 if let Some(Ok(Event::Key(key_event))) = event {
-//                     if key_event.code == KeyCode::Char('q') {
-//                         self.tx.send(Event::Quit).await?;
-//                     }
-//                 }
-//             },
-//             app_event = self.rx.recv() => {
-//                 match app_event {
-//                     Some(Event::Quit) => break,
-//                     Some(Event::LoggedIn(username)) => {
-//                         self.current_view = Box::new(LoggedInView::new(username));
-//                         self.start = Instant::now();
-//                     },
-//                     Some(Event::LoggedOut(reason)) => {
-//                         self.current_view = Box::new(LoggedOutView::new(reason));
-//                         self.start = Instant::now();
-//                     },
-//                     None => break,
-//                 }
-//             }
-//         }
-//     }
-//     Ok(())
-// }
-
-// pub async fn draw(&mut self) -> AppResult<()> {
-//     self.ui.draw(|frame| {
-//         let size = frame.size();
-//         let layout = Layout::default()
-//             .direction(Direction::Vertical)
-//             .constraints([
-//                 Constraint::Length(1),
-//                 Constraint::Min(1),
-//                 Constraint::Length(1),
-//             ])
-//             .split(size);
-
-//         let text = Spans::from(vec![
-//             Span::styled("Tooters", Style::default().add_modifier(Modifier::BOLD)),
-//             Span::raw(" | "),
-//             Span::styled(self.current_view.title(), Style::default().fg(Color::Gray)),
-//         ]);
-//         let title_bar =
-//             Paragraph::new(text).style(Style::default().fg(Color::White).bg(Color::Blue));
-//         frame.render_widget(title_bar, layout[0]);
-
-//         let output = Paragraph::new(format!(
-//             "Elapsed: {:?} millis",
-//             self.start.elapsed().as_millis()
-//         ));
-//         frame.render_widget(output, layout[1]);
-//     })?;
-//     Ok(())
-// }
-// }

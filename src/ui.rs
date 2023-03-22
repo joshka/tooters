@@ -1,12 +1,9 @@
 use std::io::{self, Stdout};
 
-use crossterm::{
-    event::{DisableMouseCapture, EnableMouseCapture},
-    terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
-};
+use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::{backend::CrosstermBackend, Frame, Terminal};
 
-use crate::AppResult;
+use crate::app::AppResult;
 
 type Backend = CrosstermBackend<Stdout>;
 
@@ -24,7 +21,7 @@ impl Ui {
 
     pub fn init(&mut self) -> AppResult<()> {
         terminal::enable_raw_mode()?;
-        crossterm::execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
+        crossterm::execute!(io::stdout(), EnterAlternateScreen)?;
         self.terminal.hide_cursor()?;
         self.terminal.clear()?;
         Ok(())
@@ -42,7 +39,7 @@ impl Ui {
 impl Drop for Ui {
     fn drop(&mut self) {
         terminal::disable_raw_mode().unwrap();
-        crossterm::execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture).unwrap();
+        crossterm::execute!(io::stdout(), LeaveAlternateScreen).unwrap();
         self.terminal.show_cursor().unwrap();
     }
 }
