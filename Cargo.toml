@@ -6,7 +6,15 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+async-trait = "0.1"
 crossterm = { version = "0.26", features = ["event-stream"] }
+femme = "2.2"
 futures = "0.3"
+log = "0.4"
+mastodon-async = { version = "1.2", features = ["toml"] }
 ratatui = { git = "https://github.com/tui-rs-revival/ratatui.git" }
 tokio = { version = "1", features = ["full"] }
+
+[dev-dependencies]
+tempfile = "3"
+indoc = "2"
