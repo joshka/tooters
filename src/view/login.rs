@@ -4,8 +4,8 @@ use tokio::{time::sleep, sync::mpsc};
 
 use crate::app::{Event, AppResult};
 
+#[derive(Debug, Default)]
 pub struct LoginView {
-    event_tx: mpsc::Sender<Event>,
 }
 
 impl Display for LoginView {
@@ -15,16 +15,15 @@ impl Display for LoginView {
 }
 
 impl LoginView {
-    pub fn new(event_tx : mpsc::Sender<Event>) -> Self {
+    pub fn new() -> Self {
         Self {
-            event_tx,
         }
     }
 
-    pub async fn run(&self) -> AppResult<()> {
+    pub async fn run(&self, event_tx : mpsc::Sender<Event>) -> AppResult<()> {
         // simulate user login
         sleep(Duration::from_secs(1)).await;
-        self.event_tx.send(Event::LoggedIn).await?;
+        event_tx.send(Event::LoggedIn).await?;
         Ok(())
     }
 }

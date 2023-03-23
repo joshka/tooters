@@ -10,7 +10,7 @@ use tokio::{sync::mpsc, time::interval};
 
 use crate::{
     ui::Ui,
-    view::{HomeView, LoginView, View},
+    view::View,
 };
 
 pub async fn run() -> AppResult<()> {
@@ -71,7 +71,6 @@ impl App {
     pub fn new() -> AppResult<App> {
         let (tx, rx) = mpsc::channel(100);
         let mut ui = Ui::new()?;
-        let view_tx = tx.clone();
         ui.init()?;
         Ok(Self {
             rx,
@@ -79,7 +78,7 @@ impl App {
             ui,
             tick_count: 0,
             title: "".to_string(),
-            next_view: Some(View::login(view_tx)),
+            next_view: Some(View::login()),
         })
     }
 
@@ -117,7 +116,7 @@ impl App {
                     if self.next_view.is_some() {
                         let view = self.next_view.take().unwrap();
                         self.title = view.to_string();
-                        view.run().await;
+                        view.run(self.tx.clone()).await;
                     }
                     self.tick_count += 1;
                     self.draw()?;
@@ -126,10 +125,10 @@ impl App {
                     break;
                 }
                 Event::LoggedIn => {
-                    self.next_view = Some(View::Home(HomeView::new(self.tx.clone())));
+                    self.next_view = Some(View::home());
                 }
                 Event::LoggedOut => {
-                    self.next_view = Some(View::Login(LoginView::new(self.tx.clone())));
+                    self.next_view = Some(View::login());
                 }
                 Event::Key(_event) => {}
             }
