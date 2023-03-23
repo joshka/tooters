@@ -1,0 +1,23 @@
+version: 0.1
+cli:
+  version: 1.6.1
+plugins:
+  sources:
+    - id: trunk
+      ref: v0.0.13
+      uri: https://github.com/trunk-io/plugins
+lint:
+  enabled:
+    - yamllint@1.29.0
+    - clippy@1.65.0
+    - git-diff-check
+    - gitleaks@8.16.1
+    - prettier@2.8.6
+    - rustfmt@1.65.0
+    - taplo@0.7.0
+runtimes:
+  enabled:
+    - rust@1.67.0
+actions:
+  enabled:
+    - trunk-fmt-pre-commit
