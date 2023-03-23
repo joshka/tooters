@@ -1,12 +1,11 @@
-use std::{time::Duration, fmt::Display};
+use std::{fmt::Display, time::Duration};
 
-use tokio::{time::sleep, sync::mpsc};
+use tokio::{sync::mpsc, time::sleep};
 
-use crate::app::{Event, AppResult};
+use crate::app::{AppResult, Event};
 
 #[derive(Debug, Default)]
-pub struct HomeView {
-}
+pub struct HomeView {}
 
 impl Display for HomeView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -16,7 +15,7 @@ impl Display for HomeView {
 
 impl HomeView {
     pub fn new() -> Self {
-        Self { }
+        Self {}
     }
 
     pub async fn run(&self, event_tx: mpsc::Sender<Event>) -> AppResult<()> {

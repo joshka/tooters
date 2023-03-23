@@ -1,12 +1,11 @@
-use std::{time::Duration, fmt::Display};
+use std::{fmt::Display, time::Duration};
 
-use tokio::{time::sleep, sync::mpsc};
+use tokio::{sync::mpsc, time::sleep};
 
-use crate::app::{Event, AppResult};
+use crate::app::{AppResult, Event};
 
 #[derive(Debug, Default)]
-pub struct LoginView {
-}
+pub struct LoginView {}
 
 impl Display for LoginView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -16,11 +15,10 @@ impl Display for LoginView {
 
 impl LoginView {
     pub fn new() -> Self {
-        Self {
-        }
+        Self {}
     }
 
-    pub async fn run(&self, event_tx : mpsc::Sender<Event>) -> AppResult<()> {
+    pub async fn run(&self, event_tx: mpsc::Sender<Event>) -> AppResult<()> {
         // simulate user login
         sleep(Duration::from_secs(1)).await;
         event_tx.send(Event::LoggedIn).await?;

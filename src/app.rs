@@ -8,10 +8,7 @@ use ratatui::{
 };
 use tokio::{sync::mpsc, time::interval};
 
-use crate::{
-    ui::Ui,
-    view::View,
-};
+use crate::{ui::Ui, view::View};
 
 pub async fn run() -> AppResult<()> {
     let mut app = App::new()?;

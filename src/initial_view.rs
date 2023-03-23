@@ -13,7 +13,10 @@ pub struct IntitialView {
 
 impl IntitialView {
     pub fn new(tx: Sender<Event>) -> Self {
-        Self { status: "Loading...".to_string(), tx }
+        Self {
+            status: "Loading...".to_string(),
+            tx,
+        }
     }
 
     async fn attempt_login(&mut self, p: &Path) {
@@ -28,7 +31,7 @@ impl IntitialView {
                         // TODO: also return the mastodon instance for future use
                         let username = &account.username;
                         self.status = format!("Logged in as {username}@{server_name}");
-                         tx.send(Event::LoggedIn(account.username)).await;
+                        tx.send(Event::LoggedIn(account.username)).await;
                     }
                     Err(e) => match e {
                         mastodon_async::Error::Serde(_) => {
@@ -116,9 +119,6 @@ mod tests {
         let (tx, mut rx) = channel(100);
         let mut view = IntitialView::new(tx);
         view.attempt_login(Path::new("mastodon-data.toml")).await;
-        assert_eq!(
-            rx.recv().await,
-            Some(Event::LoggedIn("joshka".to_string()))
-        );
+        assert_eq!(rx.recv().await, Some(Event::LoggedIn("joshka".to_string())));
     }
 }
