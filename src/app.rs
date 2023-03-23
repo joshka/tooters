@@ -8,7 +8,7 @@ use ratatui::{
 };
 use tokio::{sync::mpsc, time::interval};
 
-use crate::{ui::Ui, view::View};
+use crate::{ui::Ui, view::login::LoginDetails, view::View};
 
 pub async fn run() -> AppResult<()> {
     let mut app = App::new()?;
@@ -52,7 +52,7 @@ pub enum Event {
     Tick,
     Quit,
     Key(KeyEvent),
-    LoggedIn,
+    LoggedIn(LoginDetails),
     LoggedOut,
 }
 
@@ -62,6 +62,7 @@ pub struct App {
     ui: Ui,
     tick_count: u64,
     title: String,
+    view: View,
     next_view: Option<View>,
 }
 
@@ -82,6 +83,7 @@ impl App {
             ui,
             tick_count: 0,
             title: "".to_string(),
+            view: View::None,
             next_view: Some(View::login()),
         })
     }
@@ -119,6 +121,7 @@ impl App {
                 Event::Tick => {
                     if self.next_view.is_some() {
                         let view = self.next_view.take().unwrap();
+                        self.view = view.clone();
                         self.title = view.to_string();
                         view.run(self.tx.clone()).await;
                     }
@@ -128,8 +131,8 @@ impl App {
                 Event::Quit => {
                     break;
                 }
-                Event::LoggedIn => {
-                    self.next_view = Some(View::home());
+                Event::LoggedIn(server) => {
+                    self.next_view = Some(View::home(server));
                 }
                 Event::LoggedOut => {
                     self.next_view = Some(View::login());
@@ -163,6 +166,7 @@ impl App {
             let tick_count = Paragraph::new(format!("Tick count: {}", self.tick_count));
             frame.render_widget(title_bar, layout[0]);
             frame.render_widget(tick_count, layout[2]);
+            frame.render_widget(self.view.clone(), layout[1]);
         })?;
         Ok(())
     }
