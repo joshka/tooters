@@ -13,29 +13,36 @@ use crate::{ui::Ui, view::View};
 pub async fn run() -> AppResult<()> {
     let mut app = App::new()?;
     crossterm::terminal::enable_raw_mode()?;
-    let mut key_events = EventStream::new();
     loop {
+        let event_tx = app.tx.clone();
         tokio::select! {
             _ = app.run() => {
                 println!("App exited");
                 break;
             }
-            Some(Ok(crossterm::event::Event::Key(key_event))) = key_events.next() => {
-                match (key_event.modifiers, key_event.code) {
-                    (crossterm::event::KeyModifiers::CONTROL, KeyCode::Char('c')) |
-                    (KeyModifiers::NONE, KeyCode::Char('q'))
-                    => {
-                        app.tx.send(Event::Quit).await?;
-                    }
-                    _ => {
-                        app.tx.send(Event::Key(key_event)).await?;
-                    }
-                }
+            _ = handle_crossterm_events(event_tx) => {
+                println!("Crossterm event handler exited");
+                break;
             }
         }
     }
     crossterm::terminal::disable_raw_mode()?;
     Ok(())
+}
+
+pub async fn handle_crossterm_events(event_tx: mpsc::Sender<Event>) {
+    let mut key_events = EventStream::new();
+    while let Some(Ok(crossterm::event::Event::Key(key_event))) = key_events.next().await {
+        match (key_event.modifiers, key_event.code) {
+            (crossterm::event::KeyModifiers::CONTROL, KeyCode::Char('c'))
+            | (KeyModifiers::NONE, KeyCode::Char('q')) => {
+                event_tx.send(Event::Quit).await.unwrap();
+            }
+            _ => {
+                event_tx.send(Event::Key(key_event)).await.unwrap();
+            }
+        }
+    }
 }
 
 pub type AppResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
