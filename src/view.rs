@@ -1,13 +1,12 @@
-mod login;
-use std::fmt::Display;
-
-pub use login::LoginView;
-
 mod home;
-pub use home::HomeView;
+mod login;
+
+use std::fmt::Display;
 use tokio::sync::mpsc;
 
 use crate::app::Event;
+use home::HomeView;
+use login::LoginView;
 
 pub enum View {
     Login(LoginView),
