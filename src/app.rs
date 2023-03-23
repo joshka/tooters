@@ -1,9 +1,17 @@
-use crossterm::event::{KeyEvent, EventStream, KeyCode, KeyModifiers};
+use crossterm::event::{EventStream, KeyCode, KeyEvent, KeyModifiers};
 use futures::StreamExt;
-use ratatui::{layout::{Direction, Constraint, Layout}, style::{Modifier, Style, Color}, text::{Spans, Span}, widgets::Paragraph};
+use ratatui::{
+    layout::{Constraint, Direction, Layout},
+    style::{Color, Modifier, Style},
+    text::{Span, Spans},
+    widgets::Paragraph,
+};
 use tokio::{sync::mpsc, time::interval};
 
-use crate::{view::{LoginView, View}, ui::Ui};
+use crate::{
+    ui::Ui,
+    view::{HomeView, LoginView, View},
+};
 
 pub async fn run() -> AppResult<()> {
     let mut app = App::new()?;
@@ -38,7 +46,6 @@ pub type AppResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[derive(Debug)]
 pub enum Event {
     Tick,
-    Start,
     Quit,
     Key(KeyEvent),
     LoggedIn,
@@ -49,7 +56,9 @@ pub struct App {
     rx: mpsc::Receiver<Event>,
     tx: mpsc::Sender<Event>,
     ui: Ui,
+    tick_count: u64,
     title: String,
+    next_view: Option<View>,
 }
 
 impl Default for App {
@@ -62,8 +71,16 @@ impl App {
     pub fn new() -> AppResult<App> {
         let (tx, rx) = mpsc::channel(100);
         let mut ui = Ui::new()?;
+        let view_tx = tx.clone();
         ui.init()?;
-        Ok(Self { rx, tx, ui, title: "".to_string() })
+        Ok(Self {
+            rx,
+            tx,
+            ui,
+            tick_count: 0,
+            title: "".to_string(),
+            next_view: Some(View::login(view_tx)),
+        })
     }
 
     pub async fn run(&mut self) -> AppResult<()> {
@@ -84,7 +101,6 @@ impl App {
                 }
             }
         });
-        self.tx.send(Event::Start).await?;
         Ok(())
     }
 
@@ -98,22 +114,24 @@ impl App {
         while let Some(event) = self.rx.recv().await {
             match event {
                 Event::Tick => {
+                    if self.next_view.is_some() {
+                        let view = self.next_view.take().unwrap();
+                        self.title = view.to_string();
+                        view.run().await;
+                    }
+                    self.tick_count += 1;
                     self.draw()?;
                 }
                 Event::Quit => {
                     break;
                 }
-                Event::Start => {
-                    let view = View::Login(LoginView::new(self.tx.clone()));
-                    self.title = "Login".to_string();
-                    view.run().await;
+                Event::LoggedIn => {
+                    self.next_view = Some(View::Home(HomeView::new(self.tx.clone())));
                 }
                 Event::LoggedOut => {
+                    self.next_view = Some(View::Login(LoginView::new(self.tx.clone())));
                 }
-                Event::LoggedIn => {
-                }
-                Event::Key(_event) => {
-                },
+                Event::Key(_event) => {}
             }
         }
         Ok(())
@@ -139,7 +157,9 @@ impl App {
             ]);
             let title_bar =
                 Paragraph::new(text).style(Style::default().fg(Color::White).bg(Color::Blue));
+            let tick_count = Paragraph::new(format!("Tick count: {}", self.tick_count));
             frame.render_widget(title_bar, layout[0]);
+            frame.render_widget(tick_count, layout[2]);
         })?;
         Ok(())
     }

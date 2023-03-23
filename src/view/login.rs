@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{time::Duration, fmt::Display};
 
 use tokio::{time::sleep, sync::mpsc};
 
@@ -8,6 +8,12 @@ pub struct LoginView {
     event_tx: mpsc::Sender<Event>,
 }
 
+impl Display for LoginView {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Login")
+    }
+}
+
 impl LoginView {
     pub fn new(event_tx : mpsc::Sender<Event>) -> Self {
         Self {
@@ -15,7 +21,7 @@ impl LoginView {
         }
     }
 
-    pub async fn run(self) -> AppResult<()> {
+    pub async fn run(&self) -> AppResult<()> {
         // simulate user login
         sleep(Duration::from_secs(1)).await;
         self.event_tx.send(Event::LoggedIn).await?;
