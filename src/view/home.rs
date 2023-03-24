@@ -1,10 +1,10 @@
-use std::fmt::Display;
+use std::{fmt::Display, time::Duration};
 
 use mastodon_async::{mastodon::Mastodon, prelude::Status};
 use ratatui::widgets::{Block, Borders, List, ListItem};
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, time::sleep};
 
-use crate::app::Event;
+use crate::{Event, LoginDetails};
 
 #[derive(Debug, Clone)]
 pub struct HomeView {
@@ -24,23 +24,25 @@ impl Display for HomeView {
         )
     }
 }
-
-impl HomeView {
-    pub fn new(username: String, url: String, mastodon_client: Mastodon) -> Self {
+impl From<LoginDetails> for HomeView {
+    fn from(login_details: LoginDetails) -> Self {
         Self {
-            username,
-            url,
-            mastodon_client,
+            username: login_details.account.username,
+            url: login_details.url,
+            mastodon_client: login_details.mastodon_client,
             timeline: None,
         }
     }
-
-    pub async fn run(&mut self, _event_tx: mpsc::Sender<Event>) -> crate::Result<()> {
-        let timeline = self.mastodon_client.get_home_timeline().await?;
-        self.timeline = Some(timeline.initial_items);
-        // sleep(Duration::from_secs(3)).await;
-        // event_tx.send(Event::LoggedOut).await?;
-        Ok(())
+}
+impl HomeView {
+    pub async fn run(&mut self, tx: mpsc::Sender<Event>) {
+        match self.mastodon_client.get_home_timeline().await {
+            Ok(timeline) => self.timeline = Some(timeline.initial_items),
+            Err(e) => tx.send(Event::MastodonError(e)).await.unwrap(),
+        }
+        // simulate user activity
+        sleep(Duration::from_secs(3)).await;
+        tx.send(Event::LoggedOut).await.unwrap();
     }
 
     pub(crate) fn widget(&self) -> List<'static> {

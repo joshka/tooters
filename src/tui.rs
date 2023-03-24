@@ -8,53 +8,62 @@ use futures::StreamExt;
 use ratatui::{backend::CrosstermBackend, Frame, Terminal};
 use tokio::sync::mpsc;
 
-use crate::app::Event;
+use crate::Event;
 
 type Backend = CrosstermBackend<Stdout>;
 
 pub struct Tui {
     terminal: Terminal<Backend>,
+    tx: mpsc::Sender<Event>,
 }
 
 impl Tui {
-    pub fn build() -> crate::Result<Self> {
-        let stdout = io::stdout();
-        let backend = Backend::new(stdout);
-        let terminal = Terminal::new(backend)?;
-        Ok(Self { terminal })
+    pub fn build(tx: mpsc::Sender<crate::Event>) -> crate::Result<Self> {
+        Ok(Self {
+            terminal: Terminal::new(Backend::new(io::stdout()))?,
+            tx,
+        })
     }
 
-    pub fn init(&mut self) -> crate::Result<()> {
+    pub async fn init(&mut self) -> crate::Result<()> {
         terminal::enable_raw_mode()?;
         crossterm::execute!(io::stdout(), EnterAlternateScreen)?;
         self.terminal.hide_cursor()?;
         self.terminal.clear()?;
+        self.start_keyboard_handler().await;
         Ok(())
     }
 
-    pub async fn handle_key_events(tx: mpsc::Sender<Event>) {
+    async fn start_keyboard_handler(&self) {
+        let tx = self.tx.clone();
         let mut key_events = EventStream::new();
-        while let Some(Ok(crossterm::event::Event::Key(key_event))) = key_events.next().await {
-            match (key_event.modifiers, key_event.code) {
-                (crossterm::event::KeyModifiers::CONTROL, KeyCode::Char('c'))
-                | (KeyModifiers::NONE, KeyCode::Char('q')) => {
-                    tx.send(Event::Quit).await.unwrap();
-                }
-                _ => {
-                    tx.send(Event::Key(key_event)).await.unwrap();
+        tokio::spawn(async move {
+            while let Some(Ok(crossterm::event::Event::Key(key_event))) = key_events.next().await {
+                match (key_event.modifiers, key_event.code) {
+                    (crossterm::event::KeyModifiers::CONTROL, KeyCode::Char('c'))
+                    | (KeyModifiers::NONE, KeyCode::Char('q')) => {
+                        if tx.send(Event::Quit).await.is_err() {
+                            break;
+                        }
+                    }
+                    _ => {
+                        if tx.send(Event::Key(key_event)).await.is_err() {
+                            break;
+                        }
+                    }
                 }
             }
-        }
+        });
     }
 
-    // pub fn draw<F>(&mut self, f: F) -> crate::Result<()>
-    // where
-    //     F: FnOnce(&mut Frame<Backend>),
-    // {
-    //     let t = &mut self.terminal;
-    //     t.draw(f)?;
-    //     Ok(())
-    // }
+    pub fn draw<F>(&mut self, f: F) -> crate::Result<()>
+    where
+        F: FnOnce(&mut Frame<Backend>),
+    {
+        let t = &mut self.terminal;
+        t.draw(f)?;
+        Ok(())
+    }
 }
 
 impl Drop for Tui {

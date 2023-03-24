@@ -1,4 +1,3 @@
-use app::App;
 use std::time::Duration;
 
 pub mod app;
@@ -13,16 +12,25 @@ pub async fn run() -> crate::Result<()> {
     let app = App::build()?;
     app.run().await?;
     Ok(())
-    // loop {
-    //     tokio::select! {
-    //         _ = app.run() => {
-    //             println!("App exited");
-    //             break;
-    //         }
-    //         _ = handle_crossterm_events(event_tx) => {
-    //             println!("Crossterm event handler exited");
-    //             break;
-    //         }
-    //     }
-    // }
+}
+
+use app::App;
+use crossterm::event::KeyEvent;
+use mastodon_async::prelude::Account;
+
+#[derive(Debug)]
+pub enum Event {
+    Tick,
+    Quit,
+    Key(KeyEvent),
+    LoggedIn(LoginDetails),
+    LoggedOut,
+    MastodonError(mastodon_async::Error),
+}
+
+#[derive(Debug, Clone)]
+pub struct LoginDetails {
+    pub url: String,
+    pub account: Account,
+    pub mastodon_client: mastodon_async::mastodon::Mastodon,
 }

@@ -1,63 +1,50 @@
-use crossterm::event::{EventStream, KeyCode, KeyEvent, KeyModifiers};
-use futures::StreamExt;
-
+use crate::{tui::Tui, view::View, Event};
 use tokio::{sync::mpsc, time::interval};
-
-use crate::{tui::Tui, view::login::LoginDetails, view::View};
-
-#[derive(Debug)]
-pub enum Event {
-    Tick,
-    Quit,
-    Key(KeyEvent),
-    LoggedIn(LoginDetails),
-    LoggedOut,
-}
 
 pub struct App {
     rx: mpsc::Receiver<Event>,
     tx: mpsc::Sender<Event>,
     tui: Tui,
+    view: Option<View>,
+    messages: Vec<String>,
     tick_count: u64,
-    title: String,
-    view: View,
-    next_view: Option<View>,
 }
 
 impl App {
     pub fn build() -> crate::Result<App> {
         let (tx, rx) = mpsc::channel(100);
+        let tui = Tui::build(tx.clone())?;
         Ok(Self {
             rx,
             tx,
-            tui: Tui::build()?,
+            tui,
+            view: Some(View::login()),
+            messages: Vec::new(),
             tick_count: 0,
-            title: "".to_string(),
-            view: View::None,
-            next_view: Some(View::login()),
         })
     }
 
     pub async fn run(mut self) -> crate::Result<()> {
-        self.tui.init()?;
-        self.start().await?;
+        self.tui.init().await?;
+        self.start_tick_handler();
         self.handle_events().await?;
         self.drain_events().await?;
         Ok(())
     }
 
-    async fn start(&self) -> crate::Result<()> {
+    /// Start a tick handler that sends a tick event every `TICK_DURATION`.
+    /// This is used to update the UI.
+    fn start_tick_handler(&self) {
         let tx = self.tx.clone();
         tokio::spawn(async move {
             let mut interval = interval(crate::TICK_DURATION);
             loop {
                 interval.tick().await;
-                if let Err(err) = tx.send(Event::Tick).await {
-                    eprintln!("Error sending tick: {}", err);
+                if tx.send(Event::Tick).await.is_err() {
+                    break;
                 }
             }
         });
-        Ok(())
     }
 
     async fn drain_events(&mut self) -> crate::Result<()> {
@@ -70,25 +57,28 @@ impl App {
         while let Some(event) = self.rx.recv().await {
             match event {
                 Event::Tick => {
-                    if self.next_view.is_some() {
-                        let view = self.next_view.take().unwrap();
-                        self.view = view.clone();
-                        self.title = view.to_string();
-                        view.run(self.tx.clone()).await;
-                    }
                     self.tick_count += 1;
-                    // self.view.draw(&self.ui, &self.tick_count)?;
+                    if let Some(view) = &self.view {
+                        view.draw(&mut self.tui, self.tick_count)?;
+                    }
                 }
                 Event::Quit => {
                     break;
                 }
-                Event::LoggedIn(server) => {
-                    self.next_view = Some(View::home(server));
+                Event::LoggedIn(login_details) => {
+                    self.messages.push("Logged in!".to_string());
+                    let tx = self.tx.clone();
+                    let view = self.view.insert(View::home(login_details.clone()));
+                    if let View::Home(home) = view {
+                        home.run(tx).await;
+                    }
                 }
                 Event::LoggedOut => {
-                    self.next_view = Some(View::login());
+                    self.messages.push("Logged out!".to_string());
+                    self.view = Some(View::login());
                 }
                 Event::Key(_event) => {}
+                Event::MastodonError(err) => self.messages.push(err.to_string()),
             }
         }
         Ok(())
