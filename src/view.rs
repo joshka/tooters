@@ -8,7 +8,7 @@ use ratatui::{
 use std::fmt::Display;
 use tokio::sync::mpsc;
 
-use crate::{app::Event, ui::Ui};
+use crate::{app::Event, tui::Tui};
 use home::HomeView;
 use login::LoginDetails;
 use login::LoginView;
@@ -64,7 +64,7 @@ impl View {
         }
     }
 
-    pub fn draw(&self, ui: &Ui, tick_count: &u64) -> crate::Result<()> {
+    pub fn draw(&self, ui: &Tui, tick_count: &u64) -> crate::Result<()> {
         let title = self.to_string();
         // ui.draw(|frame| {
         //     let size = frame.size();

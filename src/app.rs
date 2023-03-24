@@ -3,42 +3,7 @@ use futures::StreamExt;
 
 use tokio::{sync::mpsc, time::interval};
 
-use crate::{ui::Ui, view::login::LoginDetails, view::View};
-
-pub async fn run() -> crate::Result<()> {
-    let mut app = App::new()?;
-    crossterm::terminal::enable_raw_mode()?;
-    loop {
-        let event_tx = app.tx.clone();
-        tokio::select! {
-            _ = app.run() => {
-                println!("App exited");
-                break;
-            }
-            _ = handle_crossterm_events(event_tx) => {
-                println!("Crossterm event handler exited");
-                break;
-            }
-        }
-    }
-    crossterm::terminal::disable_raw_mode()?;
-    Ok(())
-}
-
-pub async fn handle_crossterm_events(event_tx: mpsc::Sender<Event>) {
-    let mut key_events = EventStream::new();
-    while let Some(Ok(crossterm::event::Event::Key(key_event))) = key_events.next().await {
-        match (key_event.modifiers, key_event.code) {
-            (crossterm::event::KeyModifiers::CONTROL, KeyCode::Char('c'))
-            | (KeyModifiers::NONE, KeyCode::Char('q')) => {
-                event_tx.send(Event::Quit).await.unwrap();
-            }
-            _ => {
-                event_tx.send(Event::Key(key_event)).await.unwrap();
-            }
-        }
-    }
-}
+use crate::{tui::Tui, view::login::LoginDetails, view::View};
 
 #[derive(Debug)]
 pub enum Event {
@@ -52,28 +17,20 @@ pub enum Event {
 pub struct App {
     rx: mpsc::Receiver<Event>,
     tx: mpsc::Sender<Event>,
-    ui: Ui,
+    tui: Tui,
     tick_count: u64,
     title: String,
     view: View,
     next_view: Option<View>,
 }
 
-impl Default for App {
-    fn default() -> Self {
-        Self::new().unwrap()
-    }
-}
-
 impl App {
-    pub fn new() -> crate::Result<App> {
+    pub fn build() -> crate::Result<App> {
         let (tx, rx) = mpsc::channel(100);
-        let mut ui = Ui::new()?;
-        ui.init()?;
         Ok(Self {
             rx,
             tx,
-            ui,
+            tui: Tui::build()?,
             tick_count: 0,
             title: "".to_string(),
             view: View::None,
@@ -81,7 +38,8 @@ impl App {
         })
     }
 
-    pub async fn run(&mut self) -> crate::Result<()> {
+    pub async fn run(mut self) -> crate::Result<()> {
+        self.tui.init()?;
         self.start().await?;
         self.handle_events().await?;
         self.drain_events().await?;

@@ -1,16 +1,23 @@
 use std::io::{self, Stdout};
 
-use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
+use crossterm::{
+    event::{EventStream, KeyCode, KeyModifiers},
+    terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use futures::StreamExt;
 use ratatui::{backend::CrosstermBackend, Frame, Terminal};
+use tokio::sync::mpsc;
+
+use crate::app::Event;
 
 type Backend = CrosstermBackend<Stdout>;
 
-pub struct Ui {
+pub struct Tui {
     terminal: Terminal<Backend>,
 }
 
-impl Ui {
-    pub fn new() -> crate::Result<Self> {
+impl Tui {
+    pub fn build() -> crate::Result<Self> {
         let stdout = io::stdout();
         let backend = Backend::new(stdout);
         let terminal = Terminal::new(backend)?;
@@ -25,6 +32,21 @@ impl Ui {
         Ok(())
     }
 
+    pub async fn handle_key_events(tx: mpsc::Sender<Event>) {
+        let mut key_events = EventStream::new();
+        while let Some(Ok(crossterm::event::Event::Key(key_event))) = key_events.next().await {
+            match (key_event.modifiers, key_event.code) {
+                (crossterm::event::KeyModifiers::CONTROL, KeyCode::Char('c'))
+                | (KeyModifiers::NONE, KeyCode::Char('q')) => {
+                    tx.send(Event::Quit).await.unwrap();
+                }
+                _ => {
+                    tx.send(Event::Key(key_event)).await.unwrap();
+                }
+            }
+        }
+    }
+
     // pub fn draw<F>(&mut self, f: F) -> crate::Result<()>
     // where
     //     F: FnOnce(&mut Frame<Backend>),
@@ -35,7 +57,7 @@ impl Ui {
     // }
 }
 
-impl Drop for Ui {
+impl Drop for Tui {
     fn drop(&mut self) {
         terminal::disable_raw_mode().unwrap();
         crossterm::execute!(io::stdout(), LeaveAlternateScreen).unwrap();
