@@ -4,7 +4,7 @@ use mastodon_async::{mastodon::Mastodon, prelude::Status};
 use ratatui::widgets::{Block, Borders, List, ListItem};
 use tokio::sync::mpsc;
 
-use crate::app::{AppResult, Event};
+use crate::app::Event;
 
 #[derive(Debug, Clone)]
 pub struct HomeView {
@@ -35,7 +35,7 @@ impl HomeView {
         }
     }
 
-    pub async fn run(&mut self, _event_tx: mpsc::Sender<Event>) -> AppResult<()> {
+    pub async fn run(&mut self, _event_tx: mpsc::Sender<Event>) -> crate::Result<()> {
         let timeline = self.mastodon_client.get_home_timeline().await?;
         self.timeline = Some(timeline.initial_items);
         // sleep(Duration::from_secs(3)).await;

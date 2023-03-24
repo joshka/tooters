@@ -3,7 +3,7 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use std::fmt::Display;
 use tokio::sync::mpsc;
 
-use crate::app::{AppResult, Event};
+use crate::app::Event;
 
 #[derive(Debug, Default, Clone)]
 pub struct LoginView;
@@ -19,7 +19,7 @@ impl LoginView {
         Self {}
     }
 
-    pub async fn run(&self, event_tx: mpsc::Sender<Event>) -> AppResult<()> {
+    pub async fn run(&self, event_tx: mpsc::Sender<Event>) -> crate::Result<()> {
         if let Some(login_details) = load_credentials().await {
             event_tx.send(Event::LoggedIn(login_details)).await?;
         }

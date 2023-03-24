@@ -1,8 +1,10 @@
-use tooters::app::{self, AppResult};
+use tooters::app;
 
 #[tokio::main]
-async fn main() -> AppResult<()> {
+async fn main() -> tooters::Result<()> {
     console_subscriber::init();
+
     app::run().await?;
+
     Ok(())
 }

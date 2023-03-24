@@ -1,16 +1,11 @@
 use crossterm::event::{EventStream, KeyCode, KeyEvent, KeyModifiers};
 use futures::StreamExt;
-use ratatui::{
-    layout::{Constraint, Direction, Layout},
-    style::{Color, Modifier, Style},
-    text::{Span, Spans},
-    widgets::Paragraph,
-};
+
 use tokio::{sync::mpsc, time::interval};
 
 use crate::{ui::Ui, view::login::LoginDetails, view::View};
 
-pub async fn run() -> AppResult<()> {
+pub async fn run() -> crate::Result<()> {
     let mut app = App::new()?;
     crossterm::terminal::enable_raw_mode()?;
     loop {
@@ -45,8 +40,6 @@ pub async fn handle_crossterm_events(event_tx: mpsc::Sender<Event>) {
     }
 }
 
-pub type AppResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-
 #[derive(Debug)]
 pub enum Event {
     Tick,
@@ -73,7 +66,7 @@ impl Default for App {
 }
 
 impl App {
-    pub fn new() -> AppResult<App> {
+    pub fn new() -> crate::Result<App> {
         let (tx, rx) = mpsc::channel(100);
         let mut ui = Ui::new()?;
         ui.init()?;
@@ -88,14 +81,14 @@ impl App {
         })
     }
 
-    pub async fn run(&mut self) -> AppResult<()> {
+    pub async fn run(&mut self) -> crate::Result<()> {
         self.start().await?;
         self.handle_events().await?;
         self.drain_events().await?;
         Ok(())
     }
 
-    async fn start(&self) -> AppResult<()> {
+    async fn start(&self) -> crate::Result<()> {
         let tx = self.tx.clone();
         tokio::spawn(async move {
             let mut interval = interval(crate::TICK_DURATION);
@@ -109,13 +102,13 @@ impl App {
         Ok(())
     }
 
-    async fn drain_events(&mut self) -> AppResult<()> {
+    async fn drain_events(&mut self) -> crate::Result<()> {
         self.rx.close();
         while (self.rx.recv().await).is_some() {}
         Ok(())
     }
 
-    async fn handle_events(&mut self) -> AppResult<()> {
+    async fn handle_events(&mut self) -> crate::Result<()> {
         while let Some(event) = self.rx.recv().await {
             match event {
                 Event::Tick => {
@@ -126,7 +119,7 @@ impl App {
                         view.run(self.tx.clone()).await;
                     }
                     self.tick_count += 1;
-                    self.draw()?;
+                    // self.view.draw(&self.ui, &self.tick_count)?;
                 }
                 Event::Quit => {
                     break;
@@ -140,34 +133,6 @@ impl App {
                 Event::Key(_event) => {}
             }
         }
-        Ok(())
-    }
-
-    fn draw(&mut self) -> AppResult<()> {
-        let title = &self.title;
-        self.ui.draw(|frame| {
-            let size = frame.size();
-            let layout = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(1),
-                    Constraint::Min(1),
-                    Constraint::Length(1),
-                ])
-                .split(size);
-
-            let text = Spans::from(vec![
-                Span::styled("Tooters", Style::default().add_modifier(Modifier::BOLD)),
-                Span::raw(" | "),
-                Span::styled(title, Style::default().fg(Color::Gray)),
-            ]);
-            let title_bar =
-                Paragraph::new(text).style(Style::default().fg(Color::White).bg(Color::Blue));
-            let tick_count = Paragraph::new(format!("Tick count: {}", self.tick_count));
-            frame.render_widget(title_bar, layout[0]);
-            frame.render_widget(tick_count, layout[2]);
-            frame.render_widget(self.view.clone(), layout[1]);
-        })?;
         Ok(())
     }
 }

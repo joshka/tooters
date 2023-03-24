@@ -3,8 +3,6 @@ use std::io::{self, Stdout};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::{backend::CrosstermBackend, Frame, Terminal};
 
-use crate::app::AppResult;
-
 type Backend = CrosstermBackend<Stdout>;
 
 pub struct Ui {
@@ -12,14 +10,14 @@ pub struct Ui {
 }
 
 impl Ui {
-    pub fn new() -> AppResult<Self> {
+    pub fn new() -> crate::Result<Self> {
         let stdout = io::stdout();
         let backend = Backend::new(stdout);
         let terminal = Terminal::new(backend)?;
         Ok(Self { terminal })
     }
 
-    pub fn init(&mut self) -> AppResult<()> {
+    pub fn init(&mut self) -> crate::Result<()> {
         terminal::enable_raw_mode()?;
         crossterm::execute!(io::stdout(), EnterAlternateScreen)?;
         self.terminal.hide_cursor()?;
@@ -27,13 +25,14 @@ impl Ui {
         Ok(())
     }
 
-    pub fn draw<F>(&mut self, f: F) -> AppResult<()>
-    where
-        F: FnOnce(&mut Frame<Backend>),
-    {
-        self.terminal.draw(f)?;
-        Ok(())
-    }
+    // pub fn draw<F>(&mut self, f: F) -> crate::Result<()>
+    // where
+    //     F: FnOnce(&mut Frame<Backend>),
+    // {
+    //     let t = &mut self.terminal;
+    //     t.draw(f)?;
+    //     Ok(())
+    // }
 }
 
 impl Drop for Ui {

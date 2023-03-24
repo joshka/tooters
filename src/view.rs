@@ -1,19 +1,20 @@
-mod home;
-pub(crate) mod login;
-
 use ratatui::{
     buffer::Buffer,
-    layout::Rect,
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Modifier, Style},
+    text::{Span, Spans},
     widgets::{Paragraph, Widget},
 };
 use std::fmt::Display;
 use tokio::sync::mpsc;
 
-use crate::app::Event;
+use crate::{app::Event, ui::Ui};
 use home::HomeView;
+use login::LoginDetails;
 use login::LoginView;
 
-use self::login::LoginDetails;
+pub mod home;
+pub mod login;
 
 #[derive(Debug, Clone)]
 pub enum View {
@@ -62,6 +63,34 @@ impl View {
             View::None => Box::new(Paragraph::new("None")),
         }
     }
+
+    pub fn draw(&self, ui: &Ui, tick_count: &u64) -> crate::Result<()> {
+        let title = self.to_string();
+        // ui.draw(|frame| {
+        //     let size = frame.size();
+        //     let layout = Layout::default()
+        //         .direction(Direction::Vertical)
+        //         .constraints([
+        //             Constraint::Length(1),
+        //             Constraint::Min(1),
+        //             Constraint::Length(1),
+        //         ])
+        //         .split(size);
+
+        //     let text = Spans::from(vec![
+        //         Span::styled("Tooters", Style::default().add_modifier(Modifier::BOLD)),
+        //         Span::raw(" | "),
+        //         Span::styled(title, Style::default().fg(Color::Gray)),
+        //     ]);
+        //     let title_bar =
+        //         Paragraph::new(text).style(Style::default().fg(Color::White).bg(Color::Blue));
+        //     let tick_count = Paragraph::new(format!("Tick count: {}", tick_count));
+        //     frame.render_widget(title_bar, layout[0]);
+        //     frame.render_widget(tick_count, layout[2]);
+        //     frame.render_widget(self, layout[1]);
+        // })?;
+        Ok(())
+    }
 }
 
 // impl From<View> for dyn Widget {
@@ -74,7 +103,7 @@ impl View {
 //     }
 // }
 
-impl Widget for View {
+impl Widget for &View {
     fn render(self, area: Rect, buf: &mut Buffer) {
         match self {
             View::Login(view) => view.widget().render(area, buf),
