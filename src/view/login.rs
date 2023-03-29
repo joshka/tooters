@@ -16,16 +16,15 @@ impl Display for LoginView {
 
 impl LoginView {
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
 
     pub async fn run(&self, event_tx: mpsc::Sender<Event>) {
         if let Some(login_details) = Self::load_credentials().await {
-            event_tx
-                .send(Event::LoggedIn(login_details))
-                .await
-                .expect("Failed to send login event");
+            if let Err(e) = event_tx.send(Event::LoggedIn(login_details)).await {
+                eprintln!("Error sending login event: {}", e);
+            }
         }
     }
 

@@ -9,7 +9,7 @@ const TICK_DURATION: Duration = Duration::from_millis(250);
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 pub async fn run() -> crate::Result<()> {
-    let app = App::build()?;
+    let mut app = App::build()?;
     app.run().await?;
     Ok(())
 }

@@ -19,10 +19,10 @@ pub struct Tui {
 
 impl Tui {
     pub fn build(tx: mpsc::Sender<crate::Event>) -> crate::Result<Self> {
-        Ok(Self {
-            terminal: Terminal::new(Backend::new(io::stdout()))?,
-            tx,
-        })
+        let buffer = io::stdout();
+        let backend = Backend::new(buffer);
+        let terminal = Terminal::new(backend)?;
+        Ok(Self { terminal, tx })
     }
 
     pub async fn init(&mut self) -> crate::Result<()> {
@@ -68,8 +68,14 @@ impl Tui {
 
 impl Drop for Tui {
     fn drop(&mut self) {
-        terminal::disable_raw_mode().unwrap();
-        crossterm::execute!(io::stdout(), LeaveAlternateScreen).unwrap();
-        self.terminal.show_cursor().unwrap();
+        if let Err(e) = terminal::disable_raw_mode() {
+            eprintln!("Error: {}", e);
+        }
+        if let Err(e) = crossterm::execute!(io::stdout(), LeaveAlternateScreen) {
+            eprintln!("Error: {}", e);
+        }
+        if let Err(e) = self.terminal.show_cursor() {
+            eprintln!("Error: {}", e);
+        }
     }
 }

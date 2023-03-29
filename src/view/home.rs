@@ -38,21 +38,29 @@ impl HomeView {
     pub async fn run(&mut self, tx: mpsc::Sender<Event>) {
         match self.mastodon_client.get_home_timeline().await {
             Ok(timeline) => self.timeline = Some(timeline.initial_items),
-            Err(e) => tx.send(Event::MastodonError(e)).await.unwrap(),
+            Err(e) => {
+                if let Err(send_err) = tx.send(Event::MastodonError(e)).await {
+                    eprintln!("Error sending MastodonError event: {}", send_err);
+                }
+            }
         }
         // simulate user activity
         sleep(Duration::from_secs(3)).await;
-        tx.send(Event::LoggedOut).await.unwrap();
+        if let Err(e) = tx.send(Event::LoggedOut).await {
+            eprintln!("Error sending LoggedOut event: {}", e);
+        }
     }
 
     pub(crate) fn widget(&self) -> List<'static> {
-        let items = match &self.timeline {
-            None => vec![ListItem::new("Loading...")],
-            Some(timeline) => timeline
-                .iter()
-                .map(|status| ListItem::new(status.content.clone()))
-                .collect(),
-        };
+        let items = self.timeline.as_ref().map_or_else(
+            || vec![ListItem::new("Loading...")],
+            |timeline| {
+                timeline
+                    .iter()
+                    .map(|status| ListItem::new(status.content.clone()))
+                    .collect()
+            },
+        );
         List::new(items).block(
             Block::default()
                 .borders(Borders::ALL)

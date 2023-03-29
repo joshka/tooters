@@ -29,7 +29,7 @@ impl Display for View {
 
 impl View {
     #[must_use]
-    pub fn login() -> Self {
+    pub const fn login() -> Self {
         Self::Login(LoginView::new())
     }
 
@@ -38,13 +38,11 @@ impl View {
         Self::Home(HomeView::from(login_details))
     }
 
-    pub async fn run(self, event_tx: mpsc::Sender<Event>) {
-        tokio::spawn(async move {
-            match self {
-                Self::Login(view) => view.run(event_tx).await,
-                Self::Home(mut view) => view.run(event_tx).await,
-            };
-        });
+    pub async fn run(&mut self, event_tx: mpsc::Sender<Event>) {
+        match self {
+            Self::Login(view) => view.run(event_tx).await,
+            Self::Home(ref mut view) => view.run(event_tx).await,
+        };
     }
 }
 

@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
 use crate::{tui::Tui, view::View, Event};
 use ratatui::{
     layout::{Constraint, Direction, Layout},
@@ -11,12 +14,13 @@ pub struct App {
     rx: mpsc::Receiver<Event>,
     tx: mpsc::Sender<Event>,
     tui: Tui,
-    view: View,
+    view: Arc<Mutex<View>>,
     messages: Vec<String>,
     tick_count: u64,
 }
 
 impl App {
+    /// Build a new app.
     pub fn build() -> crate::Result<Self> {
         let (tx, rx) = mpsc::channel(100);
         let tui = Tui::build(tx.clone())?;
@@ -24,7 +28,7 @@ impl App {
             rx,
             tx,
             tui,
-            view: View::login(),
+            view: Arc::new(Mutex::new(View::login())),
             messages: Vec::new(),
             tick_count: 0,
         })
@@ -32,11 +36,18 @@ impl App {
 
     /// Run the app.
     /// This will start the tick handler and handle events.
-    pub async fn run(mut self) -> crate::Result<()> {
+    pub async fn run(&mut self) -> crate::Result<()> {
         self.tui.init().await?;
         self.start_tick_handler();
+        let tx = self.tx.clone();
+        let view = self.view.clone();
+        let view_task = tokio::spawn(async move {
+            let mut view = view.lock().await;
+            view.run(tx).await;
+        });
         self.handle_events().await?;
         self.drain_events().await?;
+        view_task.await?;
         Ok(())
     }
 
@@ -70,20 +81,22 @@ impl App {
             match event {
                 Event::Tick => {
                     self.tick_count += 1;
-                    self.draw()?;
+                    self.draw().await?;
                 }
                 Event::Quit => {
                     break;
                 }
                 Event::LoggedIn(login_details) => {
                     self.messages.push("Logged in!".to_string());
-                    self.view = View::home(login_details);
-                    todo!("run home view");
+                    let mut view = self.view.lock().await;
+                    *view = View::home(login_details);
+                    // todo!("run home view");
                 }
                 Event::LoggedOut => {
                     self.messages.push("Logged out!".to_string());
-                    self.view = View::login();
-                    todo!("run login view");
+                    let mut view = self.view.lock().await;
+                    *view = View::login();
+                    // todo!("run login view");
                 }
                 Event::Key(_event) => {}
                 Event::MastodonError(err) => self.messages.push(err.to_string()),
@@ -92,8 +105,8 @@ impl App {
         Ok(())
     }
 
-    fn draw(&mut self) -> crate::Result<()> {
-        let title = self.view.to_string();
+    async fn draw(&mut self) -> crate::Result<()> {
+        let view_title = self.view.lock().await.to_string();
         self.tui.draw(|frame| {
             let size = frame.size();
             let layout = Layout::default()
@@ -108,7 +121,7 @@ impl App {
             let text = Spans::from(vec![
                 Span::styled("Tooters", Style::default().add_modifier(Modifier::BOLD)),
                 Span::raw(" | "),
-                Span::styled(title, Style::default().fg(Color::Gray)),
+                Span::styled(view_title, Style::default().fg(Color::Gray)),
             ]);
             let title_bar =
                 Paragraph::new(text).style(Style::default().fg(Color::White).bg(Color::Blue));
@@ -117,7 +130,7 @@ impl App {
 
             let text = Spans::from(vec![Span::raw(format!("Tick count: {0}", self.tick_count))]);
             let widget = Paragraph::new(text).style(Style::default().bg(Color::Red));
-            frame.render_widget(widget, layout[3]);
+            frame.render_widget(widget, layout[2]);
         })?;
         Ok(())
     }

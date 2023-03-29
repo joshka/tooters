@@ -53,7 +53,8 @@
       "args": [
         "--clear",
         "--exec",
-        "lclippy -- -W clippy::pedantic -W clippy::nursery -W clippy::unwrap_used -W clippy::expect_used"
+        // "lclippy -- -W clippy::pedantic -W clippy::nursery -W clippy::unwrap_used -W clippy::expect_used"
+        "lclippy -- -W clippy::nursery -W clippy::unwrap_used -W clippy::expect_used"
       ],
     ],
     "problemMatcher": [
