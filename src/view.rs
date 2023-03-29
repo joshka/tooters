@@ -1,6 +1,4 @@
-use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
-use ratatui::widgets::Widget;
+use ratatui::{buffer::Buffer, layout::Rect, widgets::Widget};
 use std::fmt::Display;
 use tokio::sync::mpsc;
 
@@ -49,8 +47,8 @@ impl View {
 impl Widget for View {
     fn render(self, area: Rect, buf: &mut Buffer) {
         match self {
-            Self::Login(view) => view.widget().render(area, buf),
-            Self::Home(view) => view.widget().render(area, buf),
-        };
+            Self::Login(view) => view.render(area, buf),
+            Self::Home(view) => view.render(area, buf),
+        }
     }
 }

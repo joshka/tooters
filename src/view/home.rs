@@ -1,7 +1,7 @@
 use std::{fmt::Display, time::Duration};
 
 use mastodon_async::{mastodon::Mastodon, prelude::Status};
-use ratatui::widgets::{Block, Borders, List, ListItem};
+use ratatui::widgets::{Block, Borders, List, ListItem, Widget};
 use tokio::{sync::mpsc, time::sleep};
 
 use crate::{Event, LoginDetails};
@@ -34,6 +34,7 @@ impl From<LoginDetails> for HomeView {
         }
     }
 }
+
 impl HomeView {
     pub async fn run(&mut self, tx: mpsc::Sender<Event>) {
         match self.mastodon_client.get_home_timeline().await {
@@ -50,21 +51,21 @@ impl HomeView {
             eprintln!("Error sending LoggedOut event: {}", e);
         }
     }
+}
 
-    pub(crate) fn widget(&self) -> List<'static> {
-        let items = self.timeline.as_ref().map_or_else(
-            || vec![ListItem::new("Loading...")],
-            |timeline| {
-                timeline
-                    .iter()
-                    .map(|status| ListItem::new(status.content.clone()))
-                    .collect()
-            },
-        );
-        List::new(items).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(self.to_string()),
-        )
+impl Widget for HomeView {
+    fn render(self, area: ratatui::layout::Rect, buf: &mut ratatui::buffer::Buffer) {
+        let mut items = vec![];
+        if let Some(timeline) = &self.timeline {
+            for status in timeline {
+                items.push(ListItem::new(format!(
+                    "{}: {}",
+                    status.account.display_name, status.content
+                )));
+            }
+        }
+        List::new(items)
+            .block(Block::default().borders(Borders::ALL).title("timeline"))
+            .render(area, buf);
     }
 }

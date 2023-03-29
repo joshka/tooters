@@ -106,7 +106,8 @@ impl App {
     }
 
     async fn draw(&mut self) -> crate::Result<()> {
-        let view_title = self.view.lock().await.to_string();
+        let view = self.view.lock().await;
+        let view_title = view.to_string();
         self.tui.draw(|frame| {
             let size = frame.size();
             let layout = Layout::default()
@@ -126,8 +127,7 @@ impl App {
             let title_bar =
                 Paragraph::new(text).style(Style::default().fg(Color::White).bg(Color::Blue));
             frame.render_widget(title_bar, layout[0]);
-            // frame.render_widget(self.view, layout[1]);
-
+            frame.render_widget(view.to_owned(), layout[1]);
             let text = Spans::from(vec![Span::raw(format!("Tick count: {0}", self.tick_count))]);
             let widget = Paragraph::new(text).style(Style::default().bg(Color::Red));
             frame.render_widget(widget, layout[2]);

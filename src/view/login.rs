@@ -1,5 +1,9 @@
 use mastodon_async::{helpers::toml, Mastodon};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::{
+    buffer::Buffer,
+    layout::Rect,
+    widgets::{Block, Borders, Paragraph, Widget},
+};
 use std::fmt::Display;
 use tokio::sync::mpsc;
 
@@ -28,15 +32,6 @@ impl LoginView {
         }
     }
 
-    #[must_use]
-    pub fn widget(&self) -> Paragraph<'static> {
-        Paragraph::new("Logging in...").block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(self.to_string()),
-        )
-    }
-
     async fn load_credentials() -> Option<LoginDetails> {
         match toml::from_file("mastodon-data.toml") {
             Ok(data) => {
@@ -52,5 +47,17 @@ impl LoginView {
             }
             Err(_) => None,
         }
+    }
+}
+
+impl Widget for LoginView {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        Paragraph::new("Logging in...")
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(self.to_string()),
+            )
+            .render(area, buf);
     }
 }
