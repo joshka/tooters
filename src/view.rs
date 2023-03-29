@@ -1,12 +1,9 @@
 use ratatui::buffer::Buffer;
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::{Span, Spans};
-use ratatui::widgets::{Paragraph, Widget};
+use ratatui::layout::Rect;
+use ratatui::widgets::Widget;
 use std::fmt::Display;
 use tokio::sync::mpsc;
 
-use crate::tui::Tui;
 use crate::{Event, LoginDetails};
 use home::HomeView;
 use login::LoginView;
@@ -49,47 +46,13 @@ impl View {
             };
         });
     }
-
-    pub fn draw(&self, tui: &mut Tui, tick_count: u64) -> crate::Result<()> {
-        let title = self.to_string();
-        tui.draw(|frame| {
-            let size = frame.size();
-            let layout = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(1),
-                    Constraint::Min(3),
-                    Constraint::Length(1),
-                ])
-                .split(size);
-
-            let text = Spans::from(vec![
-                Span::styled("Tooters", Style::default().add_modifier(Modifier::BOLD)),
-                Span::raw(" | "),
-                Span::styled(title, Style::default().fg(Color::Gray)),
-            ]);
-            let title_bar =
-                Paragraph::new(text).style(Style::default().fg(Color::White).bg(Color::Blue));
-            //     let tick_count = Paragraph::new(format!("Tick count: {}", tick_count));
-            frame.render_widget(title_bar, layout[0]);
-            frame.render_widget(self, layout[1]);
-
-            // let items = errors.iter().map(|e| ListItem::new(e.to_string())).collect::<Vec<_>>();
-            // let widget = List::new(items).block(Block::default().borders(Borders::ALL).title("Errors"));
-            // status bar with th tick count
-            let text = Spans::from(vec![Span::raw(format!("Tick count: {tick_count}"))]);
-            let widget = Paragraph::new(text).style(Style::default().bg(Color::Red));
-            frame.render_widget(widget, layout[2]);
-        })?;
-        Ok(())
-    }
 }
 
-impl Widget for &View {
+impl Widget for View {
     fn render(self, area: Rect, buf: &mut Buffer) {
         match self {
-            View::Login(view) => view.widget().render(area, buf),
-            View::Home(view) => view.widget().render(area, buf),
+            Self::Login(view) => view.widget().render(area, buf),
+            Self::Home(view) => view.widget().render(area, buf),
         };
     }
 }
