@@ -88,21 +88,30 @@ impl App {
                 }
                 Event::LoggedIn(login_details) => {
                     self.messages.push("Logged in!".to_string());
-                    let mut view = self.view.lock().await;
-                    *view = View::home(login_details);
-                    // todo!("run home view");
+                    let home = View::home(login_details);
+                    self.change_view(home).await;
                 }
                 Event::LoggedOut => {
                     self.messages.push("Logged out!".to_string());
-                    let mut view = self.view.lock().await;
-                    *view = View::login();
-                    // todo!("run login view");
+                    let login = View::login();
+                    self.change_view(login).await;
                 }
                 Event::Key(_event) => {}
                 Event::MastodonError(err) => self.messages.push(err.to_string()),
             }
         }
         Ok(())
+    }
+
+    async fn change_view(&mut self, view: View) {
+        let mut current_view = self.view.lock().await;
+        *current_view = view;
+        let tx = self.tx.clone();
+        let view = self.view.clone();
+        tokio::spawn(async move {
+            let mut view = view.lock().await;
+            view.run(tx).await;
+        });
     }
 
     async fn draw(&mut self) -> crate::Result<()> {

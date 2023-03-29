@@ -24,6 +24,7 @@ impl Display for HomeView {
         )
     }
 }
+
 impl From<LoginDetails> for HomeView {
     fn from(login_details: LoginDetails) -> Self {
         Self {
@@ -45,11 +46,6 @@ impl HomeView {
                 }
             }
         }
-        // simulate user activity
-        sleep(Duration::from_secs(3)).await;
-        if let Err(e) = tx.send(Event::LoggedOut).await {
-            eprintln!("Error sending LoggedOut event: {}", e);
-        }
     }
 }
 
@@ -63,6 +59,8 @@ impl Widget for HomeView {
                     status.account.display_name, status.content
                 )));
             }
+        } else {
+            items.push(ListItem::new("Loading timeline..."));
         }
         List::new(items)
             .block(Block::default().borders(Borders::ALL).title("timeline"))

@@ -1,5 +1,6 @@
 use std::io::{self, Stdout};
 
+use crate::Event;
 use crossterm::{
     event::{EventStream, KeyCode, KeyModifiers},
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
@@ -7,8 +8,6 @@ use crossterm::{
 use futures::StreamExt;
 use ratatui::{backend::CrosstermBackend, Frame, Terminal};
 use tokio::sync::mpsc;
-
-use crate::Event;
 
 type Backend = CrosstermBackend<Stdout>;
 
