@@ -4,7 +4,9 @@
     {
       "type": "cargo",
       "command": "build",
-      "problemMatcher": ["$rustc"],
+      "problemMatcher": [
+        "$rustc"
+      ],
       "group": {
         "kind": "build"
       },
@@ -22,7 +24,9 @@
     {
       "type": "cargo",
       "command": "run",
-      "problemMatcher": ["$rustc"],
+      "problemMatcher": [
+        "$rustc"
+      ],
       "group": {
         "kind": "build",
         "isDefault": true
@@ -46,20 +50,27 @@
     {
       "type": "cargo",
       "command": "watch",
-      "args": ["--exec", "lclippy", "--clear"],
-      "problemMatcher": ["$rustc"],
-      "group": {
-        "kind": "build"
-      },
-      "label": "rust: cargo clippy",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "revealProblems": "onProblem",
-        "panel": "shared",
-        "showReuseMessage": true,
-        "clear": true
-      }
+      "args": [
+        "--clear",
+        "--exec",
+        "lclippy -- -W clippy::pedantic -W clippy::nursery -W clippy::unwrap_used -W clippy::expect_used"
+      ],
+    ],
+    "problemMatcher": [
+      "$rustc"
+    ],
+    "group": {
+      "kind": "build"
+    },
+    "label": "rust: cargo clippy",
+    "presentation": {
+      "echo": true,
+      "reveal": "always",
+      "revealProblems": "onProblem",
+      "panel": "shared",
+      "showReuseMessage": true,
+      "clear": true
     }
-  ]
+  }
+]
 }
