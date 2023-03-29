@@ -15,6 +15,7 @@ impl Display for LoginView {
 }
 
 impl LoginView {
+    #[must_use]
     pub fn new() -> Self {
         Self {}
     }
@@ -28,6 +29,7 @@ impl LoginView {
         }
     }
 
+    #[must_use]
     pub fn widget(&self) -> Paragraph<'static> {
         Paragraph::new("Logging in...").block(
             Block::default()

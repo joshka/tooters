@@ -24,17 +24,19 @@ pub enum View {
 impl Display for View {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            View::Login(view) => write!(f, "{}", view),
-            View::Home(view) => write!(f, "{}", view),
+            Self::Login(view) => write!(f, "{view}"),
+            Self::Home(view) => write!(f, "{view}"),
         }
     }
 }
 
 impl View {
+    #[must_use]
     pub fn login() -> Self {
         Self::Login(LoginView::new())
     }
 
+    #[must_use]
     pub fn home(login_details: LoginDetails) -> Self {
         Self::Home(HomeView::from(login_details))
     }
@@ -42,8 +44,8 @@ impl View {
     pub async fn run(self, event_tx: mpsc::Sender<Event>) {
         tokio::spawn(async move {
             match self {
-                View::Login(view) => view.run(event_tx).await,
-                View::Home(mut view) => view.run(event_tx).await,
+                Self::Login(view) => view.run(event_tx).await,
+                Self::Home(mut view) => view.run(event_tx).await,
             };
         });
     }
@@ -75,7 +77,7 @@ impl View {
             // let items = errors.iter().map(|e| ListItem::new(e.to_string())).collect::<Vec<_>>();
             // let widget = List::new(items).block(Block::default().borders(Borders::ALL).title("Errors"));
             // status bar with th tick count
-            let text = Spans::from(vec![Span::raw(format!("Tick count: {}", tick_count))]);
+            let text = Spans::from(vec![Span::raw(format!("Tick count: {tick_count}"))]);
             let widget = Paragraph::new(text).style(Style::default().bg(Color::Red));
             frame.render_widget(widget, layout[2]);
         })?;

@@ -11,7 +11,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn build() -> crate::Result<App> {
+    pub fn build() -> crate::Result<Self> {
         let (tx, rx) = mpsc::channel(100);
         let tui = Tui::build(tx.clone())?;
         Ok(Self {
