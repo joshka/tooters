@@ -11,7 +11,9 @@ use tokio::sync::mpsc;
 use crate::{Event, LoginDetails};
 
 #[derive(Debug, Default)]
-pub struct LoginView;
+pub struct LoginView {
+    status: String,
+}
 
 impl Display for LoginView {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -21,21 +23,27 @@ impl Display for LoginView {
 
 impl LoginView {
     #[must_use]
-    pub const fn new() -> Self {
-        Self {}
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    pub async fn run(&self, event_tx: mpsc::Sender<Event>) {
-        if let Some(login_details) = Self::load_credentials().await {
+    pub fn status(&self) -> String {
+        self.status.clone()
+    }
+
+    pub async fn run(&mut self, event_tx: mpsc::Sender<Event>) {
+        if let Some(login_details) = self.load_credentials().await {
             if let Err(e) = event_tx.send(Event::LoggedIn(login_details)).await {
                 eprintln!("Error sending login event: {}", e);
             }
         }
     }
 
-    async fn load_credentials() -> Option<LoginDetails> {
+    async fn load_credentials(&mut self) -> Option<LoginDetails> {
+        self.status = "Loading credentials...".to_string();
         match toml::from_file("mastodon-data.toml") {
             Ok(data) => {
+                self.status = "Logging in...".to_string();
                 let mastodon = Mastodon::from(data.clone());
                 match mastodon.verify_credentials().await {
                     Ok(account) => Some(LoginDetails {

@@ -21,6 +21,7 @@ pub struct HomeView {
     mastodon_client: Mastodon,
     timeline: Option<Vec<Status>>,
     selected: usize,
+    status: String,
 }
 
 impl Display for HomeView {
@@ -42,15 +43,21 @@ impl From<LoginDetails> for HomeView {
             mastodon_client: login_details.mastodon_client,
             timeline: None,
             selected: 0,
+            status: String::new(),
         }
     }
 }
 
 impl HomeView {
     pub async fn run(&mut self, tx: mpsc::Sender<Event>) {
+        self.status = "Loading timeline...".to_string();
         match self.mastodon_client.get_home_timeline().await {
-            Ok(timeline) => self.timeline = Some(timeline.initial_items),
+            Ok(timeline) => {
+                self.status = "Timeline loaded".to_string();
+                self.timeline = Some(timeline.initial_items);
+            }
             Err(e) => {
+                self.status = format!("Error loading timeline: {}", e);
                 if let Err(send_err) = tx.send(Event::MastodonError(e)).await {
                     eprintln!("Error sending MastodonError event: {}", send_err);
                 }
@@ -72,9 +79,9 @@ impl HomeView {
         } else {
             items.push(ListItem::new("Loading timeline..."));
         }
-        let list = List::new(items).highlight_style(Style::default().add_modifier(Modifier::BOLD));
-        // .highlight_symbol(">>")
-        // .repeat_highlight_symbol(true);
+        // this looks great on a dark theme, but not so much on a light one
+        let style = Style::default().bg(Color::Rgb(16, 32, 64));
+        let list = List::new(items).highlight_style(style);
         let mut state = ListState::default();
         state.select(Some(self.selected));
         frame.render_stateful_widget(list, area, &mut state);
@@ -82,35 +89,44 @@ impl HomeView {
 
     pub fn scroll_down(&mut self) {
         self.selected += 1;
+        self.update_status()
     }
 
     pub fn scroll_up(&mut self) {
         self.selected = self.selected.saturating_sub(1);
+        self.update_status()
+    }
+
+    pub fn status(&self) -> String {
+        self.status.clone()
+    }
+
+    fn update_status(&mut self) {
+        if let Some(timeline) = &self.timeline {
+            if let Some(status) = timeline.get(self.selected) {
+                let date_format =
+                    format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]")
+                        .unwrap_or_default();
+                let date = status.created_at.format(&date_format).unwrap_or_default();
+                let url = status
+                    .reblog
+                    .as_ref()
+                    .map_or(status.url.clone(), |reblog| reblog.url.clone())
+                    .unwrap_or_default();
+                self.status = format!("({}) {}", date, url);
+            }
+        }
     }
 }
 
 fn format_status(status: &Status, width: u16) -> Text {
     let account = &status.account;
-    let acct = status
-        .reblog
-        .as_ref()
-        .map_or(account.acct.clone(), |reblog| reblog.account.acct.clone());
-    let display_name = status
-        .reblog
-        .as_ref()
-        .map_or(account.display_name.clone(), |reblog| {
-            reblog.account.display_name.clone()
-        });
-    let date_format = format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]")
-        .unwrap_or_default();
-    let date = status.created_at.format(&date_format).unwrap_or_default();
-    let url = status
-        .reblog
-        .as_ref()
-        .map_or(status.url.clone(), |reblog| reblog.url.clone())
-        .unwrap_or_default();
+    let reblog = status.reblog.as_ref();
+    let acct = reblog.map_or(account.acct.clone(), |reblog| reblog.account.acct.clone());
+    let display_name = reblog.map_or(account.display_name.clone(), |reblog| {
+        reblog.account.display_name.clone()
+    });
     let mut text = Text::from(Spans::from(vec![
-        Span::styled(format!("{} ", date), Style::default().fg(Color::DarkGray)),
         Span::styled(format!("{} ", acct), Style::default().fg(Color::Yellow)),
         Span::styled(
             format!("({})", display_name),
@@ -118,12 +134,8 @@ fn format_status(status: &Status, width: u16) -> Text {
                 .fg(Color::Green)
                 .add_modifier(Modifier::ITALIC),
         ),
-        Span::styled(format!(" {}", url), Style::default().fg(Color::DarkGray)),
     ]));
-    let html = status
-        .reblog
-        .as_ref()
-        .map_or(status.content.clone(), |reblog| reblog.content.clone());
+    let html = reblog.map_or(status.content.clone(), |reblog| reblog.content.clone());
     let content = html2text::from_read(html.as_bytes(), width as usize);
     text.extend(Text::from(content));
     text.extend(Text::raw(""));

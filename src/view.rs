@@ -27,7 +27,7 @@ impl Display for View {
 
 impl View {
     #[must_use]
-    pub const fn login() -> Self {
+    pub fn login() -> Self {
         Self::Login(LoginView::new())
     }
 
@@ -47,6 +47,20 @@ impl View {
         match self {
             Self::Login(view) => view.draw(frame, area),
             Self::Home(view) => view.draw(frame, area),
+        }
+    }
+
+    pub fn title(&self) -> String {
+        match self {
+            Self::Login(view) => view.to_string(),
+            Self::Home(view) => view.to_string(),
+        }
+    }
+
+    pub fn status(&self) -> String {
+        match self {
+            Self::Login(view) => view.status(),
+            Self::Home(view) => view.status(),
         }
     }
 }

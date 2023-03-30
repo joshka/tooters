@@ -131,7 +131,8 @@ impl App {
 
     async fn draw(&mut self) -> crate::Result<()> {
         let view = self.view.lock().await;
-        let view_title = view.to_string();
+        let view_title = view.title();
+        let view_status = view.status();
         self.tui.draw(|frame| {
             let size = frame.size();
             let layout = Layout::default()
@@ -146,7 +147,9 @@ impl App {
             frame.render_widget(TitleBar::new(view_title), layout[0]);
             view.draw(frame, layout[1]);
             frame.render_widget(
-                StatusBar::new(format!("Tick: {}", self.tick_count)),
+                // render a tick count here to show that the UI is updating
+                // StatusBar::new(format!("Tick: {}", self.tick_count)),
+                StatusBar::new(view_status),
                 layout[2],
             );
         })?;
@@ -193,7 +196,17 @@ impl StatusBar {
 impl Widget for StatusBar {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let style = Style::default().fg(Color::White).bg(Color::Blue);
+        let bold = Style::default().add_modifier(Modifier::BOLD);
         let text = Span::raw(self.text);
+        let text = Spans::from(vec![
+            Span::styled("Q", bold),
+            Span::raw("uit | "),
+            Span::styled("J", bold),
+            Span::raw(" down | "),
+            Span::styled("K", bold),
+            Span::raw(" up | "),
+            text,
+        ]);
         Paragraph::new(text).style(style).render(area, buf);
     }
 }
