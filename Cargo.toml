@@ -9,10 +9,18 @@ edition = "2021"
 console-subscriber = "0.1"
 crossterm = { version = "0.26", features = ["event-stream"] }
 futures = "0.3"
+html2text = "0.5"
 mastodon-async = { version = "1.2", features = ["toml"] }
 ratatui = { version = "0.20" }
-#tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "sync", "time", "tracing"] }
-tokio = { version = "1", features = ["full"] }
+time = "0.3"
+tokio = { version = "1", features = [
+  "macros",
+  "rt-multi-thread",
+  "signal",
+  "sync",
+  "time",
+  "tracing",
+] }
 tracing = "0.1"
 
 [dev-dependencies]

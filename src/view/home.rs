@@ -1,10 +1,13 @@
 use std::fmt::Display;
+use time::format_description;
 
 use mastodon_async::{mastodon::Mastodon, prelude::Status};
 use ratatui::{
     backend::Backend,
     layout::Rect,
-    widgets::{Block, Borders, List, ListItem},
+    style::{Color, Modifier, Style},
+    text::{Span, Spans, Text},
+    widgets::{List, ListItem},
     Frame,
 };
 use tokio::sync::mpsc;
@@ -56,16 +59,55 @@ impl HomeView {
     pub fn draw(&self, frame: &mut Frame<impl Backend>, area: Rect) {
         let mut items = vec![];
         if let Some(timeline) = &self.timeline {
+            // items.push(ListItem::new("12345678901234567890123456789012345678901234567890123456789012345678901234567890"));
             for status in timeline {
-                items.push(ListItem::new(format!(
-                    "{}: {}",
-                    status.account.display_name, status.content
-                )));
+                items.push(ListItem::new(format_status(status, area.width)));
             }
         } else {
             items.push(ListItem::new("Loading timeline..."));
         }
-        let list = List::new(items).block(Block::default().borders(Borders::ALL).title("timeline"));
+        let list = List::new(items);
         frame.render_widget(list, area);
     }
+}
+
+fn format_status(status: &Status, width: u16) -> Text {
+    let account = &status.account;
+    let acct = status
+        .reblog
+        .as_ref()
+        .map_or(account.acct.clone(), |reblog| reblog.account.acct.clone());
+    let display_name = status
+        .reblog
+        .as_ref()
+        .map_or(account.display_name.clone(), |reblog| {
+            reblog.account.display_name.clone()
+        });
+    let date_format =
+        format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]").unwrap();
+    let date = status.created_at.format(&date_format).unwrap_or_default();
+    let url = status
+        .reblog
+        .as_ref()
+        .map_or(status.url.clone(), |reblog| reblog.url.clone())
+        .unwrap_or_default();
+    let mut text = Text::from(Spans::from(vec![
+        Span::styled(format!("{} ", date), Style::default().fg(Color::DarkGray)),
+        Span::styled(format!("{} ", acct), Style::default().fg(Color::Yellow)),
+        Span::styled(
+            format!("({})", display_name),
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::ITALIC),
+        ),
+        Span::styled(format!(" {}", url), Style::default().fg(Color::DarkGray)),
+    ]));
+    let html = status
+        .reblog
+        .as_ref()
+        .map_or(status.content.clone(), |reblog| reblog.content.clone());
+    let content = html2text::from_read(html.as_bytes(), width as usize);
+    text.extend(Text::from(content));
+    text.extend(Text::raw(""));
+    text
 }
