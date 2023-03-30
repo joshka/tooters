@@ -2,8 +2,13 @@
 name = "tooters"
 version = "0.3.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license-file = "LICENSE.txt"
+description = "A Rust TUI-based Mastodon App"
+homepage = "https://toote.rs"
+repository = "https://github.com/joshka/tooters"
+readme = "README.md"
+keywords = ["mastodon", "tui", "cli"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 console-subscriber = "0.1"
