@@ -9,7 +9,7 @@ use login::LoginView;
 pub mod home;
 pub mod login;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum View {
     Login(LoginView),
     Home(HomeView),

@@ -7,19 +7,20 @@ use ratatui::{
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Span, Spans, Text},
-    widgets::{List, ListItem},
+    widgets::{List, ListItem, ListState},
     Frame,
 };
 use tokio::sync::mpsc;
 
 use crate::{Event, LoginDetails};
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct HomeView {
     username: String,
     url: String,
     mastodon_client: Mastodon,
     timeline: Option<Vec<Status>>,
+    selected: usize,
 }
 
 impl Display for HomeView {
@@ -40,6 +41,7 @@ impl From<LoginDetails> for HomeView {
             url: login_details.url,
             mastodon_client: login_details.mastodon_client,
             timeline: None,
+            selected: 0,
         }
     }
 }
@@ -59,15 +61,31 @@ impl HomeView {
     pub fn draw(&self, frame: &mut Frame<impl Backend>, area: Rect) {
         let mut items = vec![];
         if let Some(timeline) = &self.timeline {
-            // items.push(ListItem::new("12345678901234567890123456789012345678901234567890123456789012345678901234567890"));
+            // debugging for width and selected item
+            // items.push(ListItem::new(
+            //     "12345678901234567890123456789012345678901234567890123456789012345678901234567890",
+            // ));
+            // items.push(ListItem::new(format!("{}", self.selected)));
             for status in timeline {
                 items.push(ListItem::new(format_status(status, area.width)));
             }
         } else {
             items.push(ListItem::new("Loading timeline..."));
         }
-        let list = List::new(items);
-        frame.render_widget(list, area);
+        let list = List::new(items).highlight_style(Style::default().add_modifier(Modifier::BOLD));
+        // .highlight_symbol(">>")
+        // .repeat_highlight_symbol(true);
+        let mut state = ListState::default();
+        state.select(Some(self.selected));
+        frame.render_stateful_widget(list, area, &mut state);
+    }
+
+    pub fn scroll_down(&mut self) {
+        self.selected += 1;
+    }
+
+    pub fn scroll_up(&mut self) {
+        self.selected = self.selected.saturating_sub(1);
     }
 }
 
@@ -83,8 +101,8 @@ fn format_status(status: &Status, width: u16) -> Text {
         .map_or(account.display_name.clone(), |reblog| {
             reblog.account.display_name.clone()
         });
-    let date_format =
-        format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]").unwrap();
+    let date_format = format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]")
+        .unwrap_or_default();
     let date = status.created_at.format(&date_format).unwrap_or_default();
     let url = status
         .reblog

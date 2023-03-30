@@ -1,3 +1,4 @@
+use crossterm::event::{KeyCode, KeyModifiers};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -98,7 +99,35 @@ impl App {
                     let login = View::login();
                     self.change_view(login).await;
                 }
-                Event::Key(_event) => {}
+                Event::Key(key) => {
+                    let mut view = self.view.lock().await;
+                    if let View::Home(ref mut home) = *view {
+                        match (key.modifiers, key.code) {
+                            (KeyModifiers::NONE, KeyCode::Char('j')) => {
+                                home.scroll_down();
+                            }
+                            (KeyModifiers::NONE, KeyCode::Char('k')) => {
+                                home.scroll_up();
+                            }
+                            // (KeyModifiers::NONE, 'g') => {
+                            //     home.scroll_to_top();
+                            // }
+                            // (KeyModifiers::NONE, 'G') => {
+                            //     home.scroll_to_bottom();
+                            // }
+                            // (KeyModifiers::NONE, 'r') => {
+                            //     home.refresh();
+                            // }
+                            // (KeyModifiers::NONE, 'n') => {
+                            //     home.new_post();
+                            // }
+                            // (KeyModifiers::NONE, 'q') => {
+                            //     home.logout();
+                            // }
+                            _ => {}
+                        }
+                    }
+                }
                 Event::MastodonError(err) => self.messages.push(err.to_string()),
             }
         }

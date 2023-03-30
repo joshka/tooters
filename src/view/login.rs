@@ -10,7 +10,7 @@ use tokio::sync::mpsc;
 
 use crate::{Event, LoginDetails};
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default)]
 pub struct LoginView;
 
 impl Display for LoginView {

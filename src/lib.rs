@@ -4,7 +4,7 @@ pub mod app;
 pub mod tui;
 pub mod view;
 
-const TICK_DURATION: Duration = Duration::from_millis(250);
+const TICK_DURATION: Duration = Duration::from_millis(100);
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -28,7 +28,7 @@ pub enum Event {
     MastodonError(mastodon_async::Error),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct LoginDetails {
     pub url: String,
     pub account: Account,

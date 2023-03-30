@@ -67,6 +67,9 @@ impl Tui {
 
 impl Drop for Tui {
     fn drop(&mut self) {
+        // debugging stuff on the screen prior to exit that would otherwise be
+        // cleared by the terminal going back to normal mode
+        // std::thread::sleep(std::time::Duration::from_secs(10));
         if let Err(e) = terminal::disable_raw_mode() {
             eprintln!("Error: {}", e);
         }
