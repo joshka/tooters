@@ -1,8 +1,13 @@
-use std::{fmt::Display, time::Duration};
+use std::fmt::Display;
 
 use mastodon_async::{mastodon::Mastodon, prelude::Status};
-use ratatui::widgets::{Block, Borders, List, ListItem, Widget};
-use tokio::{sync::mpsc, time::sleep};
+use ratatui::{
+    backend::Backend,
+    layout::Rect,
+    widgets::{Block, Borders, List, ListItem},
+    Frame,
+};
+use tokio::sync::mpsc;
 
 use crate::{Event, LoginDetails};
 
@@ -47,10 +52,8 @@ impl HomeView {
             }
         }
     }
-}
 
-impl Widget for HomeView {
-    fn render(self, area: ratatui::layout::Rect, buf: &mut ratatui::buffer::Buffer) {
+    pub fn draw(&self, frame: &mut Frame<impl Backend>, area: Rect) {
         let mut items = vec![];
         if let Some(timeline) = &self.timeline {
             for status in timeline {
@@ -62,8 +65,7 @@ impl Widget for HomeView {
         } else {
             items.push(ListItem::new("Loading timeline..."));
         }
-        List::new(items)
-            .block(Block::default().borders(Borders::ALL).title("timeline"))
-            .render(area, buf);
+        let list = List::new(items).block(Block::default().borders(Borders::ALL).title("timeline"));
+        frame.render_widget(list, area);
     }
 }

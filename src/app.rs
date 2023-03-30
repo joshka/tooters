@@ -3,10 +3,12 @@ use tokio::sync::Mutex;
 
 use crate::{tui::Tui, view::View, Event};
 use ratatui::{
-    layout::{Constraint, Direction, Layout},
+    backend::Backend,
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
     widgets::Paragraph,
+    Frame,
 };
 use tokio::{sync::mpsc, time::interval};
 
@@ -128,19 +130,26 @@ impl App {
                 ])
                 .split(size);
 
-            let text = Spans::from(vec![
-                Span::styled("Tooters", Style::default().add_modifier(Modifier::BOLD)),
-                Span::raw(" | "),
-                Span::styled(view_title, Style::default().fg(Color::Gray)),
-            ]);
-            let title_bar =
-                Paragraph::new(text).style(Style::default().fg(Color::White).bg(Color::Blue));
-            frame.render_widget(title_bar, layout[0]);
-            frame.render_widget(view.to_owned(), layout[1]);
-            let text = Spans::from(vec![Span::raw(format!("Tick count: {0}", self.tick_count))]);
-            let widget = Paragraph::new(text).style(Style::default().bg(Color::Red));
-            frame.render_widget(widget, layout[2]);
+            draw_title_bar(frame, layout[0], view_title);
+            view.draw(frame, layout[1]);
+            draw_status_bar(frame, layout[2], format!("Tick: {}", self.tick_count));
         })?;
         Ok(())
     }
+}
+
+fn draw_title_bar(frame: &mut Frame<impl Backend>, area: Rect, title: String) {
+    let text = Spans::from(vec![
+        Span::styled("Tooters", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(" | "),
+        Span::styled(title, Style::default().fg(Color::Gray)),
+    ]);
+    let title_bar = Paragraph::new(text).style(Style::default().fg(Color::White).bg(Color::Blue));
+    frame.render_widget(title_bar, area);
+}
+
+fn draw_status_bar(frame: &mut Frame<impl Backend>, area: Rect, text: String) {
+    let text = Spans::from(vec![Span::raw(text)]);
+    let status_bar = Paragraph::new(text).style(Style::default().fg(Color::White).bg(Color::Red));
+    frame.render_widget(status_bar, area);
 }

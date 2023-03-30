@@ -1,8 +1,9 @@
 use mastodon_async::{helpers::toml, Mastodon};
 use ratatui::{
-    buffer::Buffer,
+    backend::Backend,
     layout::Rect,
-    widgets::{Block, Borders, Paragraph, Widget},
+    widgets::{Block, Borders, Paragraph},
+    Frame,
 };
 use std::fmt::Display;
 use tokio::sync::mpsc;
@@ -48,16 +49,13 @@ impl LoginView {
             Err(_) => None,
         }
     }
-}
 
-impl Widget for LoginView {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        Paragraph::new("Logging in...")
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(self.to_string()),
-            )
-            .render(area, buf);
+    pub fn draw(&self, frame: &mut Frame<impl Backend>, area: Rect) {
+        let widget = Paragraph::new("Logging in...").block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(self.to_string()),
+        );
+        frame.render_widget(widget, area);
     }
 }

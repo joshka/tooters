@@ -1,4 +1,4 @@
-use ratatui::{buffer::Buffer, layout::Rect, widgets::Widget};
+use ratatui::{backend::Backend, layout::Rect, Frame};
 use std::fmt::Display;
 use tokio::sync::mpsc;
 
@@ -42,13 +42,11 @@ impl View {
             Self::Home(ref mut view) => view.run(event_tx).await,
         };
     }
-}
 
-impl Widget for View {
-    fn render(self, area: Rect, buf: &mut Buffer) {
+    pub fn draw(&self, frame: &mut Frame<impl Backend>, area: Rect) {
         match self {
-            Self::Login(view) => view.render(area, buf),
-            Self::Home(view) => view.render(area, buf),
+            Self::Login(view) => view.draw(frame, area),
+            Self::Home(view) => view.draw(frame, area),
         }
     }
 }
