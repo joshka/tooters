@@ -1,4 +1,4 @@
-use mastodon_async::{helpers::toml, Mastodon};
+use mastodon_async::{helpers::toml, Data, Mastodon};
 use ratatui::{
     backend::Backend,
     layout::Rect,
@@ -12,7 +12,17 @@ use crate::{Event, LoginDetails};
 
 #[derive(Debug, Default)]
 pub struct LoginView {
-    status: String,
+    status: LoginStatus,
+}
+
+#[derive(Debug, Default)]
+pub enum LoginStatus {
+    #[default]
+    LoadingCredentials,
+    VerifyingCredentials,
+    InvalidCredentials(String),
+    FileError(String),
+    LoggedIn,
 }
 
 impl Display for LoginView {
@@ -27,39 +37,68 @@ impl LoginView {
         Self::default()
     }
 
-    pub fn status(&self) -> String {
-        self.status.clone()
+    pub async fn run(&mut self, event_tx: mpsc::Sender<Event>) {
+        match self.process_login().await {
+            Ok(login_details) => {
+                if let Err(e) = event_tx.send(Event::LoggedIn(login_details)).await {
+                    eprintln!("Error sending login event: {}", e);
+                }
+            }
+            Err(_e) => {}
+        }
     }
 
-    pub async fn run(&mut self, event_tx: mpsc::Sender<Event>) {
-        if let Some(login_details) = self.load_credentials().await {
-            if let Err(e) = event_tx.send(Event::LoggedIn(login_details)).await {
-                eprintln!("Error sending login event: {}", e);
+    async fn process_login(&mut self) -> Result<LoginDetails, String> {
+        self.status = LoginStatus::LoadingCredentials;
+        match toml::from_file("mastodon-data.toml") {
+            Ok(data) => self.verify_credentials(data).await,
+            Err(e) => {
+                self.status = LoginStatus::FileError(format!("File error: {}", e));
+                Err(format!("File error: {}", e))
             }
         }
     }
 
-    async fn load_credentials(&mut self) -> Option<LoginDetails> {
-        self.status = "Loading credentials...".to_string();
-        match toml::from_file("mastodon-data.toml") {
-            Ok(data) => {
-                self.status = "Logging in...".to_string();
-                let mastodon = Mastodon::from(data.clone());
-                match mastodon.verify_credentials().await {
-                    Ok(account) => Some(LoginDetails {
-                        url: data.base.to_string(),
-                        account,
-                        mastodon_client: mastodon,
-                    }),
-                    Err(_) => None,
-                }
+    async fn verify_credentials(&mut self, data: Data) -> Result<LoginDetails, String> {
+        self.status = LoginStatus::VerifyingCredentials;
+        let mastodon = Mastodon::from(data.clone());
+
+        match mastodon.verify_credentials().await {
+            Ok(account) => {
+                self.status = LoginStatus::LoggedIn;
+                Ok(LoginDetails {
+                    url: data.base.to_string(),
+                    account,
+                    mastodon_client: mastodon,
+                })
             }
-            Err(_) => None,
+            Err(e) => {
+                self.status = LoginStatus::InvalidCredentials(format!("Verification error: {}", e));
+                Err(format!("Verification error: {}", e))
+            }
+        }
+    }
+
+    pub fn status(&self) -> String {
+        match &self.status {
+            LoginStatus::LoadingCredentials => "Loading...".to_string(),
+            LoginStatus::VerifyingCredentials => "Verifying...".to_string(),
+            LoginStatus::InvalidCredentials(_) => "Invalid credentials".to_string(),
+            LoginStatus::FileError(_) => "File error".to_string(),
+            LoginStatus::LoggedIn => "Logged in".to_string(),
         }
     }
 
     pub fn draw(&self, frame: &mut Frame<impl Backend>, area: Rect) {
-        let widget = Paragraph::new("Logging in...").block(
+        let message = match &self.status {
+            LoginStatus::LoadingCredentials => "Loading credentials...",
+            LoginStatus::VerifyingCredentials => "Verifying credentials...",
+            LoginStatus::InvalidCredentials(msg) => msg,
+            LoginStatus::FileError(msg) => msg,
+            LoginStatus::LoggedIn => "Logged in",
+        };
+
+        let widget = Paragraph::new(message).block(
             Block::default()
                 .borders(Borders::ALL)
                 .title(self.to_string()),
