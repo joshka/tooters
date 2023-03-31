@@ -4,6 +4,11 @@ Tooters is a Rust-based Terminal User Interface (TUI) Mastodon app that allows y
 
 Visit our website at [toote.rs](https://toote.rs) (TODO) for more information and updates.
 
+## Known issues
+
+- does not handle login correctly (BYO mastodon-data.toml)
+- does not load second page of toots
+
 ## Features
 
 - View multiple toots on the screen at once
