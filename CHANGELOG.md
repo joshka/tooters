@@ -2,11 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
-## [unreleased]
+## [0.0.3] - 2023-03-31
+
+### Documentation
+
+- Add CHANGELOG.md
+- Add known issues to README
+
+### Features
+
+- Enhance status bar and view titles
+- Improve login process and status msgs
+- Handle errors in run methods
+- Add tui-input improve error handling
 
 ### Miscellaneous Tasks
 
 - Add git cliff
+- Bump trunk.io version and enable markdownlint
+- Add bacon
+- Release tooters version 0.0.3
+
+### Refactor
+
+- Replace draw funcs with widgets
+- Simplify use of home and login structs
 
 ## [0.0.2] - 2023-03-30
 
