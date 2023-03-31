@@ -49,7 +49,7 @@ impl App {
         let view = self.view.clone();
         let view_task = tokio::spawn(async move {
             let mut view = view.lock().await;
-            view.run(event_sender).await;
+            view.run(event_sender).await.unwrap_or_default()
         });
         self.handle_events().await?;
         self.drain_events().await?;
@@ -130,7 +130,7 @@ impl App {
         let view = self.view.clone();
         tokio::spawn(async move {
             let mut view = view.lock().await;
-            view.run(event_sender).await;
+            view.run(event_sender).await.unwrap_or_default()
         })
     }
 

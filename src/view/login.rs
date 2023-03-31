@@ -35,15 +35,16 @@ impl LoginView {
         "Login".to_string()
     }
 
-    pub async fn run(&mut self, event_tx: mpsc::Sender<Event>) {
+    pub async fn run(&mut self, event_tx: mpsc::Sender<Event>) -> Result<(), String> {
         match self.process_login().await {
             Ok(login_details) => {
                 if let Err(e) = event_tx.send(Event::LoggedIn(login_details)).await {
-                    eprintln!("Error sending login event: {}", e);
+                    return Err(format!("Error sending login event: {}", e));
                 }
             }
             Err(_e) => {}
         }
+        Ok(())
     }
 
     async fn process_login(&mut self) -> Result<LoginDetails, String> {
