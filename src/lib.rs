@@ -16,7 +16,7 @@ pub async fn run() -> crate::Result<()> {
 
 use app::App;
 use crossterm::event::KeyEvent;
-use mastodon_async::prelude::Account;
+use view::login::LoginDetails;
 
 #[derive(Debug)]
 pub enum Event {
@@ -26,11 +26,4 @@ pub enum Event {
     LoggedIn(LoginDetails),
     LoggedOut,
     MastodonError(mastodon_async::Error),
-}
-
-#[derive(Debug)]
-pub struct LoginDetails {
-    pub url: String,
-    pub account: Account,
-    pub mastodon_client: mastodon_async::mastodon::Mastodon,
 }

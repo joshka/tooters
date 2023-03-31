@@ -1,14 +1,15 @@
-use mastodon_async::{helpers::toml, Data, Mastodon};
-use ratatui::{
-    backend::Backend,
-    layout::Rect,
-    widgets::{Block, Borders, Paragraph},
-    Frame,
-};
-use std::fmt::Display;
+use mastodon_async::{helpers::toml, prelude::Account, Data, Mastodon};
+use ratatui::{backend::Backend, layout::Rect, widgets::Paragraph, Frame};
 use tokio::sync::mpsc;
 
-use crate::{Event, LoginDetails};
+use crate::Event;
+
+#[derive(Debug)]
+pub struct LoginDetails {
+    pub url: String,
+    pub account: Account,
+    pub mastodon_client: mastodon_async::mastodon::Mastodon,
+}
 
 #[derive(Debug, Default)]
 pub struct LoginView {
@@ -25,16 +26,13 @@ pub enum LoginStatus {
     LoggedIn,
 }
 
-impl Display for LoginView {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Login")
-    }
-}
-
 impl LoginView {
-    #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn title(&self) -> String {
+        "Login".to_string()
     }
 
     pub async fn run(&mut self, event_tx: mpsc::Sender<Event>) {
@@ -98,11 +96,7 @@ impl LoginView {
             LoginStatus::LoggedIn => "Logged in",
         };
 
-        let widget = Paragraph::new(message).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(self.to_string()),
-        );
+        let widget = Paragraph::new(message);
         frame.render_widget(widget, area);
     }
 }

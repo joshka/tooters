@@ -1,4 +1,3 @@
-use std::fmt::Display;
 use time::format_description;
 
 use mastodon_async::{mastodon::Mastodon, prelude::Status};
@@ -12,7 +11,9 @@ use ratatui::{
 };
 use tokio::sync::mpsc;
 
-use crate::{Event, LoginDetails};
+use crate::Event;
+
+use super::login::LoginDetails;
 
 #[derive(Debug)]
 pub struct HomeView {
@@ -22,17 +23,6 @@ pub struct HomeView {
     timeline: Option<Vec<Status>>,
     selected: usize,
     status: String,
-}
-
-impl Display for HomeView {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}@{}",
-            self.username,
-            self.url.trim_start_matches("https://")
-        )
-    }
 }
 
 impl From<LoginDetails> for HomeView {
@@ -63,6 +53,14 @@ impl HomeView {
                 }
             }
         }
+    }
+
+    pub fn title(&self) -> String {
+        format!(
+            "{}@{}",
+            self.username,
+            self.url.trim_start_matches("https://")
+        )
     }
 
     pub fn draw(&self, frame: &mut Frame<impl Backend>, area: Rect) {

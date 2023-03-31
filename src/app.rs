@@ -2,7 +2,11 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use std::sync::Arc;
 use tokio::{sync::Mutex, task::JoinHandle};
 
-use crate::{tui::Tui, view::View, Event};
+use crate::{
+    tui::Tui,
+    view::{home::HomeView, login::LoginView, View},
+    Event,
+};
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
@@ -30,7 +34,7 @@ impl App {
             event_receiver,
             event_sender,
             tui,
-            view: Arc::new(Mutex::new(View::login())),
+            view: Arc::new(Mutex::new(View::Login(LoginView::new()))),
             messages: Vec::new(),
             tick_count: 0,
         })
@@ -90,11 +94,12 @@ impl App {
                 }
                 Event::LoggedIn(login_details) => {
                     self.messages.push("Logged in!".to_string());
-                    self.change_view(View::home(login_details)).await;
+                    self.change_view(View::Home(HomeView::from(login_details)))
+                        .await;
                 }
                 Event::LoggedOut => {
                     self.messages.push("Logged out!".to_string());
-                    self.change_view(View::login()).await;
+                    self.change_view(View::Login(LoginView::new())).await;
                 }
                 Event::Key(key) => {
                     let mut view = self.view.lock().await;
