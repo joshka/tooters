@@ -25,5 +25,5 @@ pub enum Event {
     Key(KeyEvent),
     LoggedIn(LoginDetails),
     LoggedOut,
-    MastodonError(mastodon_async::Error),
+    MastodonError(String),
 }

@@ -14,6 +14,7 @@ categories = ["command-line-utilities"]
 crossterm = { version = "0.26", features = ["event-stream"] }
 futures = "0.3"
 html2text = "0.5"
+tui-input = "0.7"
 mastodon-async = { version = "1.2", features = ["toml"] }
 ratatui = { version = "0.20" }
 time = "0.3"

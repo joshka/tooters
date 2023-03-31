@@ -16,7 +16,7 @@ pub enum View {
 }
 
 impl View {
-    pub async fn run(&mut self, event_tx: mpsc::Sender<Event>) -> Result<(), String> {
+    pub async fn run(&mut self, event_tx: mpsc::Sender<Event>) -> crate::Result<()> {
         match self {
             Self::Login(view) => view.run(event_tx).await,
             Self::Home(ref mut view) => view.run(event_tx).await,

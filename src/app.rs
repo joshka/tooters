@@ -115,9 +115,7 @@ impl App {
                         }
                     }
                 }
-                Event::MastodonError(err) => {
-                    self.messages.push(err.to_string());
-                }
+                Event::MastodonError(_err) => {}
             }
         }
         Ok(())

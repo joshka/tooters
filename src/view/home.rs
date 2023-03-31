@@ -39,7 +39,7 @@ impl From<LoginDetails> for HomeView {
 }
 
 impl HomeView {
-    pub async fn run(&mut self, tx: mpsc::Sender<Event>) -> Result<(), String> {
+    pub async fn run(&mut self, tx: mpsc::Sender<Event>) -> crate::Result<()> {
         self.status = "Loading timeline...".to_string();
         match self.mastodon_client.get_home_timeline().await {
             Ok(timeline) => {
@@ -48,12 +48,8 @@ impl HomeView {
                 Ok(())
             }
             Err(e) => {
-                let msg = format!("Error loading timeline: {}", e);
-                self.status = msg.clone();
-                if let Err(send_err) = tx.send(Event::MastodonError(e)).await {
-                    return Err(format!("Error sending Mastodon error: {}", send_err));
-                }
-                Err(msg)
+                tx.send(Event::MastodonError(e.to_string())).await?;
+                Ok(())
             }
         }
     }
