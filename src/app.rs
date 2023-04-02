@@ -1,215 +1,190 @@
-use crossterm::event::{KeyCode, KeyModifiers};
-use std::sync::Arc;
-use tokio::{sync::Mutex, task::JoinHandle};
-
 use crate::{
-    tui::Tui,
-    view::{home::HomeView, login::LoginView, View},
-    Event,
+    component::{Component, EventOutcome, RootComponent},
+    event::{Event, Events},
+    ui::UI,
 };
-use ratatui::{
-    buffer::Buffer,
-    layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
-    text::{Span, Spans},
-    widgets::{Paragraph, Widget},
+use crossterm::event::{
+    Event::Key,
+    KeyCode::{self, Char},
 };
-use tokio::{sync::mpsc, time::interval};
+use tracing::{debug, info, trace};
 
-pub struct App {
-    event_receiver: mpsc::Receiver<Event>,
-    event_sender: mpsc::Sender<Event>,
-    tui: Tui,
-    view: Arc<Mutex<View>>,
-    messages: Vec<String>,
-    tick_count: u64,
+pub async fn run() -> anyhow::Result<()> {
+    let mut app = App::default();
+    app.run().await?;
+    Ok(())
+}
+
+struct App {
+    events: Events,
+    ui: UI,
+    root: RootComponent,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl App {
-    /// Build a new app.
-    pub fn build() -> crate::Result<Self> {
-        let (event_sender, event_receiver) = mpsc::channel(100);
-        let tui = Tui::build(event_sender.clone())?;
-        Ok(Self {
-            event_receiver,
-            event_sender,
-            tui,
-            view: Arc::new(Mutex::new(View::Login(LoginView::new()))),
-            messages: Vec::new(),
-            tick_count: 0,
-        })
+    pub fn new() -> Self {
+        let events = Events::new();
+        let root = RootComponent::new(events.tx.clone());
+        Self {
+            events,
+            ui: UI::new(),
+            root,
+        }
     }
-
-    /// Run the app.
-    /// This will start the tick handler and handle events.
-    pub async fn run(&mut self) -> crate::Result<()> {
-        self.tui.init().await?;
-        self.start_tick_handler();
-        let event_sender = self.event_sender.clone();
-        let view = self.view.clone();
-        let view_task = tokio::spawn(async move {
-            let mut view = view.lock().await;
-            view.run(event_sender).await.unwrap_or_default()
-        });
-        self.handle_events().await?;
-        self.drain_events().await?;
-        view_task.await?;
-        Ok(())
-    }
-
-    /// Start a tick handler that sends a tick event every `TICK_DURATION`.
-    /// This is used to update the UI.
-    fn start_tick_handler(&self) {
-        let event_sender = self.event_sender.clone();
-        tokio::spawn(async move {
-            let mut interval = interval(crate::TICK_DURATION);
-            loop {
-                interval.tick().await;
-                if event_sender.send(Event::Tick).await.is_err() {
+    pub async fn run(&mut self) -> anyhow::Result<()> {
+        info!("Running");
+        self.ui.start()?;
+        self.events.start()?;
+        self.root.start();
+        loop {
+            self.ui.draw(|f| {
+                self.root.draw(f, f.size());
+            })?;
+            match self.events.next().await {
+                Some(Event::Quit) => {
+                    info!("Received quit event");
                     break;
                 }
-            }
-        });
-    }
-
-    /// Drain the event queue.
-    /// This is used to ensure that all events are processed before exiting.
-    async fn drain_events(&mut self) -> crate::Result<()> {
-        self.event_receiver.close();
-        while (self.event_receiver.recv().await).is_some() {}
-        Ok(())
-    }
-
-    /// Handle events.
-    /// This is the main event loop.
-    async fn handle_events(&mut self) -> crate::Result<()> {
-        while let Some(event) = self.event_receiver.recv().await {
-            match event {
-                Event::Tick => {
-                    self.tick_count += 1;
-                    self.draw().await?;
+                Some(Event::Tick) => {
+                    trace!("Received tick event");
+                    self.root.handle_event(&Event::Tick);
                 }
-                Event::Quit => {
-                    break;
-                }
-                Event::LoggedIn(login_details) => {
-                    self.messages.push("Logged in!".to_string());
-                    self.change_view(View::Home(HomeView::from(login_details)))
-                        .await;
-                }
-                Event::LoggedOut => {
-                    self.messages.push("Logged out!".to_string());
-                    self.change_view(View::Login(LoginView::new())).await;
-                }
-                Event::Key(key) => {
-                    let mut view = self.view.lock().await;
-                    if let View::Home(ref mut home_view) = *view {
-                        match (key.modifiers, key.code) {
-                            (KeyModifiers::NONE, KeyCode::Char('j')) => {
-                                home_view.scroll_down();
-                            }
-                            (KeyModifiers::NONE, KeyCode::Char('k')) => {
-                                home_view.scroll_up();
-                            }
-                            _ => {}
+                Some(event) => {
+                    if self.root.handle_event(&event) == EventOutcome::Consumed {
+                        debug!("Event consumed by main component");
+                        continue;
+                    }
+                    if let Event::CrosstermEvent(Key(key)) = event {
+                        if key.code == Char('q') || key.code == KeyCode::Esc {
+                            debug!("Received quit key");
+                            break;
                         }
                     }
                 }
-                Event::MastodonError(_err) => {}
+                _ => {
+                    debug!("Received unknown event");
+                }
             }
         }
-        Ok(())
-    }
-
-    async fn change_view(&mut self, view: View) -> JoinHandle<()> {
-        let mut current_view = self.view.lock().await;
-        *current_view = view;
-        let event_sender = self.event_sender.clone();
-        let view = self.view.clone();
-        tokio::spawn(async move {
-            let mut view = view.lock().await;
-            view.run(event_sender).await.unwrap_or_default()
-        })
-    }
-
-    async fn draw(&mut self) -> crate::Result<()> {
-        let view = self.view.lock().await;
-        let view_title = view.title();
-        let view_status = view.status();
-        self.tui.draw(|frame| {
-            let size = frame.size();
-            let layout = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(TitleBar::HEIGHT),
-                    Constraint::Min(0),
-                    Constraint::Length(StatusBar::HEIGHT),
-                ])
-                .split(size);
-
-            frame.render_widget(TitleBar::new(view_title), layout[0]);
-            view.draw(frame, layout[1]);
-            frame.render_widget(
-                // render a tick count here to show that the UI is updating
-                // StatusBar::new(format!("Tick: {}", self.tick_count)),
-                StatusBar::new(view_status),
-                layout[2],
-            );
-        })?;
+        debug!("Shutting down");
         Ok(())
     }
 }
+// impl Tooters {
+//     pub fn new(tui: Tui) -> Self {
+//         let view = Arc::new(Mutex::new(View::Login(LoginView::new())));
+//         let (sender, receiver) = mpsc::channel(100);
+//         Self {
+//             tui,
+//             view,
+//             sender,
+//             receiver,
+//         }
+//     }
 
-struct TitleBar {
-    title: String,
-}
+//     pub async fn start(&mut self) -> anyhow::Result<()> {
+//         info!("Starting app");
+//         self.tui.start()?;
 
-impl TitleBar {
-    const HEIGHT: u16 = 1;
-    const fn new(title: String) -> Self {
-        Self { title }
-    }
-}
+//         let tick_handle = spawn_tick_task(self.sender.clone());
+//         let keyboard_handle = spawn_keyboard_task(self.sender.clone());
 
-impl Widget for TitleBar {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        let style = Style::default().fg(Color::White).bg(Color::Blue);
-        let bold = Style::default().add_modifier(Modifier::BOLD);
-        let gray = Style::default().fg(Color::Gray);
-        let text = Spans::from(vec![
-            Span::styled("Tooters", bold),
-            Span::raw(" | "),
-            Span::styled(self.title, gray),
-        ]);
-        Paragraph::new(text).style(style).render(area, buf);
-    }
-}
+//         // run the view logic
+//         self.handle_events().await?;
+//         // view_task.await?;
 
-struct StatusBar {
-    text: String,
-}
+//         self.drain_events().await?;
+//         keyboard_handle.abort();
+//         tick_handle.abort();
+//         Ok(())
+//     }
 
-impl StatusBar {
-    const HEIGHT: u16 = 1;
-    const fn new(text: String) -> Self {
-        Self { text }
-    }
-}
+//     fn set_view(&mut self, new_view: View) {
+//         debug!(?new_view, "changing view");
+//         let view = Arc::clone(&self.view);
+//         *view.lock().unwrap() = new_view;
+//     }
 
-impl Widget for StatusBar {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        let style = Style::default().fg(Color::White).bg(Color::Blue);
-        let bold = Style::default().add_modifier(Modifier::BOLD);
-        let text = Span::raw(self.text);
-        let text = Spans::from(vec![
-            Span::styled("Q", bold),
-            Span::raw("uit | "),
-            Span::styled("J", bold),
-            Span::raw(" down | "),
-            Span::styled("K", bold),
-            Span::raw(" up | "),
-            text,
-        ]);
-        Paragraph::new(text).style(style).render(area, buf);
-    }
-}
+//     /// Handle events.
+//     /// This is the main event loop.
+//     async fn handle_events(&mut self) -> anyhow::Result<()> {
+//         while let Some(event) = self.receiver.recv().await {
+//             debug!(?event, "Handling event");
+//             match event {
+//                 Event::Tick => {}
+//                 Event::LoggedIn(login_details) => {
+//                     self.set_view(View::Home(HomeView::from(login_details)));
+//                 }
+//                 Event::LoggedOut => {
+//                     self.set_view(View::Login(LoginView::new()));
+//                 }
+//                 Event::CrosstermEvent(event) => {
+//                     if let CrosstermEvent::Key(key_event) = event {
+//                         if key_event.code == KeyCode::Esc {
+//                             break;
+//                         }
+//                         self.test_changing_views(key_event);
+//                     }
+//                     // let mut view = Arc::clone(self.view);
+//                     // let mut view = view.lock();
+//                     // view.handle_event(event);
+//                 } // Event::MastodonError(_err) => {}
+//             }
+//             self.draw()?;
+//         }
+//         Ok(())
+//     }
+
+//     fn test_changing_views(&mut self, key_event: crossterm::event::KeyEvent) {
+//         // Just for testing
+//         match key_event.code {
+//             KeyCode::Char('l') => {
+//                 self.set_view(View::Login(LoginView::new()));
+//             }
+//             KeyCode::Char('h') => {
+//                 let data = Data {
+//                     base: "https://example.com".into(),
+//                     client_id: "adbc01234".into(),
+//                     client_secret: "0987dcba".into(),
+//                     redirect: "urn:ietf:wg:oauth:2.0:oob".into(),
+//                     token: "fedc5678".into(),
+//                 };
+//                 let mastodon_client = mastodon_async::Mastodon::from(data);
+//                 let home_view = HomeView {
+//                     username: "test".into(),
+//                     url: "https://example.com".into(),
+//                     mastodon_client,
+//                     timeline: None,
+//                     selected: 0,
+//                     status: "Testing...".into(),
+//                 };
+//                 self.set_view(View::Home(home_view));
+//             }
+//             _ => {}
+//         }
+//     }
+
+//     // fn run_view(&mut self) {
+//     // *current_view = view;
+//     // let sender = self.sender.clone();
+//     // let view = self.view.clone();
+//     // tokio::spawn(async move {
+//     //     let mut view = view.lock().await;
+//     //     view.run(sender).await.unwrap_or_default()
+//     // })
+//     // }
+
+//     /// Drain the event queue.
+//     /// This is used to ensure that all events are processed before exiting.
+//     async fn drain_events(&mut self) -> anyhow::Result<()> {
+//         self.receiver.close();
+//         while (self.receiver.recv().await).is_some() {}
+//         Ok(())
+//     }
+// }

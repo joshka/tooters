@@ -13,7 +13,7 @@ lint:
     - yamllint@1.30.0
     - clippy@1.65.0
     - git-diff-check
-    - gitleaks@8.16.1
+    - gitleaks@8.16.2
     - prettier@2.8.7
     - rustfmt@1.65.0
     - taplo@0.7.0

@@ -11,12 +11,15 @@ keywords = ["mastodon", "tui", "cli"]
 categories = ["command-line-utilities"]
 
 [dependencies]
+anyhow = "1.0"
 crossterm = { version = "0.26", features = ["event-stream"] }
 futures = "0.3"
 html2text = "0.5"
 tui-input = "0.7"
 mastodon-async = { version = "1.2", features = ["toml"] }
 ratatui = { version = "0.20" }
+signal-hook = "0.3"
+signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }
 time = "0.3"
 tokio = { version = "1", features = [
   "macros",
@@ -27,6 +30,9 @@ tokio = { version = "1", features = [
   "tracing",
 ] }
 tracing = "0.1"
+tracing-appender = "0.2"
+tracing-subscriber = "0.3"
+xdg = "2.4"
 
 [dev-dependencies]
 tempfile = "3"
