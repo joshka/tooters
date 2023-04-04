@@ -1,418 +1,138 @@
-use std::sync::{Arc, RwLock};
-
-use crate::{config::Config, event::Event};
+use crate::{config::Config, event::Event, widgets::AuthenticationWidget};
 use anyhow::{Context, Result};
 use crossterm::event::{Event as CrosstermEvent, KeyCode};
-use mastodon_async::{
-    prelude::{Account, Status},
-    registration::Registered,
-    Mastodon, Registration,
-};
-use ratatui::{
-    backend::Backend,
-    buffer::Buffer,
-    layout::{Constraint, Direction, Layout, Rect},
-    style::{self, Color, Modifier, Style},
-    text::Span,
-    widgets::{Block, Paragraph, Widget, Wrap},
-    Frame,
-};
-use tokio::sync::{
-    mpsc::{unbounded_channel, Sender, UnboundedReceiver, UnboundedSender},
-    Mutex,
-};
+use mastodon_async::{registration::Registered, Mastodon, Registration, StatusBuilder};
+use ratatui::{backend::Backend, layout::Rect, Frame};
+use tokio::sync::mpsc::{Receiver, Sender};
 use tracing::{debug, error, info, trace, warn};
 use tui_input::{backend::crossterm::EventHandler, Input};
 
-use super::{Component, EventOutcome};
-
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
-enum AuthenticationStep {
-    #[default]
-    LoadCredentialsFromFile,
-    EnterServerUrl,
-    RegisterClient,
-    EnterAuthenticationCode,
-    Authenticate,
-    Done,
-}
-
-#[derive(Debug, Default)]
-struct AuthenticationState {
-    step: AuthenticationStep,
-    server_url: Option<String>,
-    auth_code: Option<String>,
-    registered: Option<Registered>,
-    mastodon: Option<Mastodon>,
-    error: Option<String>, // mayber Option<Error> instead?
-    toot: Option<Status>,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-enum AuthenticationEvent {
-    UserEnteredServerUrl(String),
-    UserEnteredAuthenticationCode(String),
-    AuthenticationCodeCanceled,
-}
+use super::EventOutcome;
 
 #[derive(Debug)]
 pub struct AuthenticationComponent {
     _app_event_sender: Sender<Event>,
-    auth_state: Arc<RwLock<AuthenticationState>>,
-    event_sender: UnboundedSender<AuthenticationEvent>,
-    event_receiver: Arc<Mutex<UnboundedReceiver<AuthenticationEvent>>>,
     server_url_input: Input,
-    auth_code_input: Input,
+    server_url_sender: Option<Sender<String>>,
+    authenticated: bool,
 }
 
 impl AuthenticationComponent {
     pub fn new(_app_event_sender: Sender<Event>) -> Self {
-        let (event_sender, event_receiver) = unbounded_channel::<AuthenticationEvent>();
-        let event_receiver = Arc::new(Mutex::new(event_receiver));
-        let auth_state = Arc::new(RwLock::new(AuthenticationState::default()));
         Self {
             _app_event_sender,
-            auth_state,
-            event_sender,
-            event_receiver,
             server_url_input: Input::new("https://mastodon.social".to_string()),
-            auth_code_input: Input::default(),
+            server_url_sender: None,
+            authenticated: false,
         }
     }
-}
 
-impl Component for AuthenticationComponent {
-    fn draw(&self, f: &mut Frame<impl Backend>, area: Rect) {
-        let widget = AuthenticationWidget {
-            error: self.auth_state.read().unwrap().error.clone(),
-            server_url: self.server_url_input.value().to_string(),
-            authorization_url: self
-                .auth_state
-                .read()
-                .unwrap()
-                .registered
-                .as_ref()
-                .map(|r| {
-                    r.authorize_url()
-                        .unwrap_or("Invalid Authorize URL".to_string())
-                }),
-            auth_code: self.auth_code_input.value().to_string(),
+    pub fn title(&self) -> &'static str {
+        "Authentication"
+    }
+
+    pub async fn start(&mut self) -> Result<()> {
+        info!("Starting authentication component");
+        match load_config().await {
+            Ok(_mastodon) => {
+                self.authenticated = true;
+                return Ok(());
+            }
+            Err(e) => {
+                debug!("Error loading config: {:?}", e);
+            }
         };
-        match self.auth_state.read().unwrap().step {
-            AuthenticationStep::EnterServerUrl => {
-                f.set_cursor(area.x + self.server_url_input.cursor() as u16, area.y + 6);
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
+        self.server_url_sender = Some(tx);
+        tokio::spawn(async move {
+            match run(rx).await {
+                Ok(_) => info!("Authentication component finished"),
+                Err(e) => error!("Authentication component failed: {:?}", e),
             }
-            AuthenticationStep::EnterAuthenticationCode => {
-                f.set_cursor(area.x + self.auth_code_input.cursor() as u16, area.y + 13);
+        });
+        Ok(())
+    }
+    pub async fn handle_event(&mut self, event: &Event) -> EventOutcome {
+        trace!(?event, "AuthenticationComponent::handle_event");
+        match event {
+            Event::Tick => {}
+            Event::Quit => {}
+            Event::CrosstermEvent(CrosstermEvent::Key(key_event))
+                if key_event.code == KeyCode::Enter =>
+            {
+                if let Some(tx) = &self.server_url_sender {
+                    tx.clone()
+                        .send(self.server_url_input.value().to_string())
+                        .await
+                        .unwrap();
+                }
             }
-            _ => {}
+            Event::CrosstermEvent(e) => {
+                self.server_url_input.handle_event(e);
+            }
         }
+        EventOutcome::NotConsumed
+    }
+
+    pub fn draw(&self, f: &mut Frame<impl Backend>, area: Rect) {
+        let widget = AuthenticationWidget::new(None, self.server_url_input.value().to_string());
         widget.draw(f, area);
     }
-
-    fn handle_event(&mut self, event: &Event) -> EventOutcome {
-        trace!(?event, "AuthenticationComponent::handle_event");
-        if event == &Event::Tick {
-            return EventOutcome::Consumed;
-        }
-        // if in the EnterServerUrl or EnterAuthenticationCode state, we want to handle the event
-        // by updating the appropriate input field unless the user presses Enter which should be
-        // handled by sending an event to the event_sender
-        // if in the RegisterClient or Authenticate state, we want to ignore the event
-        match self.auth_state.read().unwrap().step {
-            AuthenticationStep::LoadCredentialsFromFile
-            | AuthenticationStep::RegisterClient
-            | AuthenticationStep::Authenticate
-            | AuthenticationStep::Done => {
-                // don't handle events in these states (ignore keypresses etc.)
-                EventOutcome::NotConsumed
-            }
-            AuthenticationStep::EnterServerUrl => match event {
-                Event::CrosstermEvent(crossterm_event) => match crossterm_event {
-                    CrosstermEvent::Key(key_event) => match key_event.code {
-                        // let the root component handle this to allow the user to exit the app
-                        KeyCode::Esc => EventOutcome::NotConsumed,
-                        KeyCode::Enter => {
-                            let url = self.server_url_input.value().to_string();
-                            self.event_sender
-                                .send(AuthenticationEvent::UserEnteredServerUrl(url))
-                                .unwrap();
-                            EventOutcome::Consumed
-                        }
-                        _ => {
-                            self.server_url_input.handle_event(crossterm_event);
-                            EventOutcome::Consumed
-                        }
-                    },
-                    _ => EventOutcome::NotConsumed,
-                },
-                _ => EventOutcome::NotConsumed,
-            },
-            AuthenticationStep::EnterAuthenticationCode => match event {
-                Event::CrosstermEvent(crossterm_event) => match crossterm_event {
-                    CrosstermEvent::Key(key_event) => match key_event.code {
-                        KeyCode::Esc => {
-                            self.event_sender
-                                .send(AuthenticationEvent::AuthenticationCodeCanceled)
-                                .unwrap();
-                            EventOutcome::Consumed
-                        }
-                        KeyCode::Enter => {
-                            let auth_code = self.auth_code_input.value().to_string();
-                            self.event_sender
-                                .send(AuthenticationEvent::UserEnteredAuthenticationCode(
-                                    auth_code,
-                                ))
-                                .unwrap();
-                            EventOutcome::Consumed
-                        }
-                        _ => {
-                            self.auth_code_input.handle_event(crossterm_event);
-                            EventOutcome::Consumed
-                        }
-                    },
-                    _ => EventOutcome::NotConsumed,
-                },
-                _ => EventOutcome::NotConsumed,
-            },
-        }
-    }
-
-    fn start(&mut self) {
-        info!("Starting authentication component");
-        let auth_state = Arc::clone(&self.auth_state);
-        let event_receiver = Arc::clone(&self.event_receiver);
-        tokio::spawn(async move {
-            run_auth_flow(auth_state, event_receiver).await;
-        });
-    }
 }
 
-/// Run the authentication flow
-/// This function is responsible for handling the authentication state machine
-async fn run_auth_flow(
-    auth_state: Arc<RwLock<AuthenticationState>>,
-    event_receiver: Arc<Mutex<UnboundedReceiver<AuthenticationEvent>>>,
-) {
-    loop {
-        let step = auth_state.read().unwrap().step;
-        debug!(?step, "Authentication step");
-        match step {
-            AuthenticationStep::LoadCredentialsFromFile => {
-                handle_load_credentials_state(&auth_state).await
-            }
-            AuthenticationStep::EnterServerUrl => {
-                let mut event_receiver = event_receiver.lock().await;
-                let event = event_receiver.recv().await;
-                handle_enter_server_url_state(&auth_state, event).await
-            }
-            AuthenticationStep::RegisterClient => handle_register_client_state(&auth_state).await,
-            AuthenticationStep::EnterAuthenticationCode => {
-                let mut event_receiver = event_receiver.lock().await;
-                let event = event_receiver.recv().await;
-                handle_enter_authentication_code_state(&auth_state, event).await
-            }
-            AuthenticationStep::Authenticate => handle_authenticate_state(&auth_state).await,
-            AuthenticationStep::Done => {
-                handle_done_state(&auth_state).await;
-                break;
-            }
-        }
-    }
+async fn load_config() -> Result<Mastodon> {
+    let config = Config::load().context("loading config failed")?;
+    debug!("Loaded config: {:?}", config);
+    let mastodon = Mastodon::from(config.data);
+    let account = mastodon.verify_credentials().await?;
+    info!("Logged in as {}", account.username);
+    Ok(mastodon)
 }
 
-/// Handle the LoadCredentialsFromFile state
-/// This state is entered when the app starts and attempts to load credentials from the credentials
-/// file. If the credentials file exists and contains valid credentials, the app will skip the
-/// authentication flow and go straight to the main app. If the credentials file doesn't exist or
-/// contains invalid credentials, the app will enter the EnterServerUrl state.
-async fn handle_load_credentials_state(auth_state: &Arc<RwLock<AuthenticationState>>) {
-    let config = Config::load();
-    match config {
-        Ok(config) => {
-            info!("Loaded credentials from file");
-            let mastodon = Mastodon::from(config.data.clone());
-            let account = verify_credentials(mastodon.clone()).await;
-            let mut auth_state = auth_state.write().unwrap();
-            auth_state.mastodon = Some(mastodon);
-            auth_state.error = Some(format!("Logged in as {}", account.unwrap().acct));
-            auth_state.step = AuthenticationStep::Done;
-        }
-        Err(error) => {
-            warn!(?error, "Failed to load credentials from file");
-            let mut auth_state = auth_state.write().unwrap();
-            auth_state.error = Some(format!(
-                "Never logged in or problems loading saved credentials: {}",
-                error
-            ));
-            auth_state.step = AuthenticationStep::EnterServerUrl;
-        }
+async fn run(rx: Receiver<String>) -> Result<()> {
+    debug!("Running authentication flow");
+    let mastodon = authorize(rx)
+        .await
+        .context("Error authorizing with mastodon")?;
+    if let Err(e) = Config::from(mastodon.data.clone()).save() {
+        error!("Error saving config: {:?}", e);
     }
+    let account = mastodon.verify_credentials().await?;
+    info!("Logged in as {}", account.username);
+    let status = StatusBuilder::new()
+        .status("Hello from tooters!")
+        .build()
+        .unwrap();
+    mastodon.new_status(status).await.unwrap();
+    Ok(())
 }
 
-/// Handle the EnterServerUrl state
-/// This state is entered when the app needs to know the server URL to authenticate with. The user
-/// will be prompted to enter the server URL and the app will enter the RegisterClient state.
-/// If the user cancels the authentication flow, the app will exit.
-async fn handle_enter_server_url_state(
-    auth_state: &Arc<RwLock<AuthenticationState>>,
-    event: Option<AuthenticationEvent>,
-) {
-    match event {
-        Some(AuthenticationEvent::UserEnteredServerUrl(server_url)) => {
-            debug!(?server_url, "User entered server url");
-            let mut auth_state = auth_state.write().unwrap();
-            auth_state.auth_code = None;
-            auth_state.server_url = Some(server_url);
-            auth_state.step = AuthenticationStep::RegisterClient;
-        }
-        event => {
-            error!(?event, "Invalid event (expected UserEnteredServerUrl)");
-            let mut auth_state = auth_state.write().unwrap();
-            auth_state.error = Some(format!("Invalid event: {:?}", event));
-        }
-    }
+async fn authorize(rx: Receiver<String>) -> Result<Mastodon> {
+    debug!("Waiting for server url...");
+    let server_url = get_server_url(rx).await?;
+    debug!("Server url: {}", server_url);
+    let registered = get_registered(server_url).await?;
+    debug!("Registered client: {:?}", registered);
+    let auth_code = get_auth_code(&registered).await?;
+    debug!("Auth code: {}", auth_code);
+    let mastodon = get_mastodon(&registered, auth_code).await?;
+    debug!("Mastodon: {:?}", mastodon);
+    Ok(mastodon)
 }
 
-/// Handle the RegisterClient state
-/// This state is entered when the app needs to register a new client with the server. The app will
-/// attempt to register a new client and enter the EnterAuthenticationCode state. If the app fails
-/// to register a new client, the app will enter the EnterServerUrl state.
-async fn handle_register_client_state(auth_state: &Arc<RwLock<AuthenticationState>>) {
-    if auth_state.read().unwrap().server_url.is_none() {
-        let mut auth_state = auth_state.write().unwrap();
-        error!("No server URL entered");
-        auth_state.error = Some("No server URL entered".to_string());
-        auth_state.step = AuthenticationStep::EnterServerUrl;
-        return;
-    }
-    let server_url = auth_state
-        .read()
-        .unwrap()
-        .server_url
-        .as_ref()
-        .unwrap()
-        .clone();
-    // TODO we should allow the user to hit Escape to interrupt the registration process here
-    // by using select! and checking the event_receiver
-    // TODO save client registration so we don't have to register a new client every time
-    // It's not the end of the world as a large server might have thousands of clients registered
-    // but it's still a bit annoying
-    match register_client(server_url).await {
-        Ok(registered) => {
-            debug!("Successfully registered client");
-            let mut auth_state = auth_state.write().unwrap();
-            auth_state.registered = Some(registered);
-            auth_state.step = AuthenticationStep::EnterAuthenticationCode;
-        }
-        Err(err) => {
-            error!(?err, "Failed to register client");
-            let mut auth_state = auth_state.write().unwrap();
-            auth_state.error = Some(format!("{:?}", err));
-            auth_state.step = AuthenticationStep::EnterServerUrl;
-        }
-    }
+/// Get the server url from the user by asking them to enter it in the terminal
+async fn get_server_url(mut rx: Receiver<String>) -> Result<String> {
+    rx.recv()
+        .await
+        .ok_or_else(|| anyhow::Error::msg("Error getting server url"))
 }
 
-/// Handle the EnterAuthenticationCode state
-/// This state is entered when the app needs to know the authentication code to authenticate with.
-/// The user will be prompted to enter the authentication code and the app will enter the
-/// Authenticate state. If the user cancels the authentication flow, the app will enter the
-/// EnterServerUrl state.
-async fn handle_enter_authentication_code_state(
-    auth_state: &Arc<RwLock<AuthenticationState>>,
-    event: Option<AuthenticationEvent>,
-) {
-    match event {
-        Some(AuthenticationEvent::UserEnteredAuthenticationCode(auth_code)) => {
-            let mut auth_state = auth_state.write().unwrap();
-            auth_state.auth_code = Some(auth_code);
-            auth_state.step = AuthenticationStep::Authenticate;
-        }
-        Some(AuthenticationEvent::AuthenticationCodeCanceled) => {
-            let mut auth_state = auth_state.write().unwrap();
-            auth_state.step = AuthenticationStep::EnterServerUrl;
-        }
-        event => {
-            error!(
-                ?event,
-                "Invalid event (expected AuthenticationCodeChanged or AuthenticationCodeCanceled)"
-            );
-            let mut auth_state = auth_state.write().unwrap();
-            auth_state.error = Some(format!("Invalid event: {:?}", event));
-            auth_state.step = AuthenticationStep::EnterServerUrl;
-        }
-    }
-}
-
-/// Handle the Authenticate state
-/// This state is entered when the app needs to authenticate with the server. The app will attempt
-/// to authenticate with the server and enter the Done state. If the app fails to authenticate with
-/// the server, the app will enter the EnterServerUrl state.
-async fn handle_authenticate_state(auth_state: &Arc<RwLock<AuthenticationState>>) {
-    // This method chain is ugly
-    let registered = auth_state
-        .read()
-        .unwrap()
-        .registered
-        .as_ref()
-        .unwrap()
-        .clone();
-    let auth_code = auth_state
-        .read()
-        .unwrap()
-        .auth_code
-        .as_ref()
-        .unwrap()
-        .clone();
-    match authenticate(registered, auth_code).await {
-        Ok(mastodon) => {
-            debug!("Successfully authenticated with server");
-            let mut auth_state = auth_state.write().unwrap();
-            auth_state.mastodon = Some(mastodon);
-            auth_state.step = AuthenticationStep::Done;
-        }
-        Err(err) => {
-            error!("Error authenticating: {:?}", err);
-            let mut auth_state = auth_state.write().unwrap();
-            auth_state.error = Some(format!("{:?}", err));
-            auth_state.step = AuthenticationStep::EnterServerUrl;
-        }
-    }
-}
-
-/// Handle the Done state
-/// This state is entered when the app has successfully authenticated with the server.
-///
-async fn handle_done_state(auth_state: &Arc<RwLock<AuthenticationState>>) {
-    debug!("Authentication done");
-    let mastodon = auth_state.read().unwrap().mastodon.clone();
-
-    let timeline = mastodon.unwrap().get_home_timeline().await.unwrap();
-    debug!(?timeline, "Timeline");
-    auth_state.write().unwrap().toot = Some(timeline.initial_items[0].clone());
-    // TODO notify the main component that we're done with authentication
-    let mastodon = auth_state
-        .read()
-        .unwrap()
-        .mastodon
-        .as_ref()
-        .unwrap()
-        .clone();
-    let data = mastodon.data.clone();
-    let config = Config { data };
-    if let Err(err) = config.save() {
-        error!(?err, "Failed to save credentials");
-        auth_state.write().unwrap().error = Some(format!("Failed to save credentials: {:?}", err));
-    } else {
-        info!("Saved credentials");
-    }
-}
-
-async fn register_client(server_url: String) -> Result<Registered> {
+/// Register the client with the server
+async fn get_registered(server_url: String) -> Result<Registered> {
     Registration::new(&server_url)
-        .client_name("tooters")
+        .client_name("Tooters")
         .website("https://github.com/joshka/tooters")
+        .redirect_uris("http://localhost:7007/callback")
         .build()
         .await
         .context(format!(
@@ -420,102 +140,87 @@ async fn register_client(server_url: String) -> Result<Registered> {
         ))
 }
 
-async fn authenticate(registered: Registered, auth_code: String) -> Result<Mastodon> {
+async fn get_mastodon(registered: &Registered, code: String) -> Result<Mastodon> {
     registered
-        .complete(auth_code)
+        .complete(code)
         .await
-        .context("Error authenticating with server")
+        .context("Unable to complete registration with the auth code")
 }
 
-async fn verify_credentials(mastodon: Mastodon) -> Result<Account> {
-    info!("Verifying credentials");
-    let account = mastodon.verify_credentials().await?;
-    info!(
-        "Logged in as {} ({}) on {}",
-        account.username, account.display_name, mastodon.data.base
-    );
-    Ok(account)
+/// Launch a browser to the authorization url and get the auth code from the user
+/// Launch a server for the url redirect
+async fn get_auth_code(registered: &Registered) -> Result<String> {
+    let auth_url = registered
+        .authorize_url()
+        .context("Registered.authorize_url() is a result but it can't fail ¯\\_(ツ)_/¯")?;
+    if webbrowser::open(&auth_url).is_ok() {
+        info!("Opened browser to {}", auth_url);
+    } else {
+        warn!("Unable to open browser, please open this url: {}", auth_url);
+    };
+    let auth_code = webserver::get_code()
+        .await
+        .context("Error getting auth code from webserver")?;
+    Ok(auth_code)
 }
 
-#[derive(Debug)]
-pub struct AuthenticationWidget {
-    error: Option<String>,
-    server_url: String,
-    authorization_url: Option<String>,
-    auth_code: String,
-}
+mod webserver {
+    use axum::extract::Query;
+    use axum::{extract::State, routing::get, Router};
+    use std::collections::HashMap;
+    use std::sync::Arc;
+    use tokio::sync::{mpsc, oneshot};
+    use tracing::{error, info};
 
-impl Default for AuthenticationWidget {
-    fn default() -> Self {
-        Self {
-            error: None,
-            server_url: String::from("https://mastodon.social"),
-            authorization_url: Some(String::from("https://mastodon.social/oauth/authorize?client_id=Fc54rQloytaQc_B-sfnLZNHAJ0_PcWPmDKj7qzSY4rM&redirect_uri=urn:ietf:wg:oauth:2.0:oob&scope=read&response_type=code")),
-            auth_code: String::from("aaaaaaZJ3L2CuIzyrIDyuJ0AMaaaC7x3K7yyqaaaaaaa"),
-        }
+    pub async fn get_code() -> anyhow::Result<String> {
+        let (tx, mut rx) = mpsc::channel(1);
+        let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+        let server_handle = tokio::spawn(async {
+            run_server(tx, shutdown_rx).await;
+        });
+        let code = rx.recv().await;
+        shutdown_tx.send(()).unwrap_or_else(|e| {
+            error!("Failed to send shutdown message to server: {:?}", e);
+        });
+        server_handle.await.unwrap_or_else(|e| {
+            error!("Server task failed: {:?}", e);
+        });
+        Ok(code.unwrap())
     }
-}
-impl AuthenticationWidget {
-    fn draw(self, f: &mut Frame<impl Backend>, area: Rect) {
-        f.render_widget(self, area);
+
+    async fn run_server(tx: mpsc::Sender<String>, shutdown_rx: oneshot::Receiver<()>) {
+        let state = Arc::new(tx);
+        let addr = ([127, 0, 0, 1], 7007).into();
+        let router = Router::new()
+            .route("/callback", get(handler))
+            .with_state(state);
+        info!("Listening on http://{addr}", addr = addr);
+        axum::Server::bind(&addr)
+            .serve(router.into_make_service())
+            .with_graceful_shutdown(async {
+                shutdown_rx.await.unwrap();
+                info!("Shutting down server...")
+            })
+            .await
+            .unwrap();
+        info!("Server shutdown.")
     }
-}
 
-impl Widget for AuthenticationWidget {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        let message_height = 2;
-        let error_height = if self.error.is_some() { 3 } else { 0 };
-        let server_url_height = 3;
-        let authorization_url_height = 4;
-        let auth_code_height = 3;
-
-        if let [message_area, error_area, server_url_area, authorization_url_area, auth_code_area] =
-            *Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(message_height),
-                    Constraint::Length(error_height),
-                    Constraint::Length(server_url_height),
-                    Constraint::Length(authorization_url_height),
-                    Constraint::Length(auth_code_height),
-                ])
-                .split(area)
-                .as_ref()
-        {
-            let bold = Style::default().add_modifier(Modifier::BOLD);
-            // Welcome message
-            Paragraph::new("Welcome to tooters. Sign in to your mastodon server")
-                .render(message_area, buf);
-
-            // Error
-            if let Some(error) = self.error {
-                let title = Span::styled("Error: ", style::Style::default().fg(Color::Red));
-                Paragraph::new(error)
-                    .style(style::Style::default().fg(Color::Red))
-                    .block(Block::default().title(title))
-                    .render(error_area, buf);
-            }
-
-            // Server URL
-            let title = Span::styled("Enter the URL of your server:", bold);
-            Paragraph::new(self.server_url)
-                .block(Block::default().title(title))
-                .render(server_url_area, buf);
-
-            // Authorization URL
-            let title = Span::styled("Goto the following URL, authorize tooters to access your account, and then paste the authentication code below:", bold);
-            if let Some(authorization_url) = self.authorization_url {
-                Paragraph::new(authorization_url)
-                    .block(Block::default().title(title))
-                    .wrap(Wrap { trim: true })
-                    .render(authorization_url_area, buf);
-
-                // Authentication Code
-                let title = Span::styled("Authentication Code:", bold);
-                Paragraph::new(self.auth_code)
-                    .block(Block::default().title(title))
-                    .render(auth_code_area, buf);
-            }
+    async fn handler(
+        State(state): State<Arc<mpsc::Sender<String>>>,
+        Query(params): Query<HashMap<String, String>>,
+    ) -> &'static str {
+        if let Some(code) = params.get("code") {
+            state
+                .clone()
+                .send(code.to_string())
+                .await
+                .unwrap_or_else(|e| {
+                    error!("Failed to send code: {:?}", e);
+                });
+            "Authorized. You can close this window."
+        } else {
+            "Authorization failed. You can close this window."
         }
     }
 }

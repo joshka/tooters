@@ -1,8 +1,15 @@
 use anyhow::{Context, Result};
 use mastodon_async::{data::Data, helpers::toml};
 
+#[derive(Debug)]
 pub struct Config {
     pub data: Data,
+}
+
+impl From<Data> for Config {
+    fn from(data: Data) -> Self {
+        Config { data }
+    }
 }
 
 impl Config {

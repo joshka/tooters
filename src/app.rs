@@ -1,5 +1,5 @@
 use crate::{
-    component::{Component, EventOutcome, RootComponent},
+    component::{EventOutcome, RootComponent},
     event::{Event, Events},
     ui::UI,
 };
@@ -41,7 +41,7 @@ impl App {
         info!("Running");
         self.ui.start()?;
         self.events.start()?;
-        self.root.start();
+        self.root.start().await;
         loop {
             self.ui.draw(|f| {
                 self.root.draw(f, f.size());
@@ -53,10 +53,10 @@ impl App {
                 }
                 Some(Event::Tick) => {
                     trace!("Received tick event");
-                    self.root.handle_event(&Event::Tick);
+                    self.root.handle_event(&Event::Tick).await;
                 }
                 Some(event) => {
-                    if self.root.handle_event(&event) == EventOutcome::Consumed {
+                    if self.root.handle_event(&event).await == EventOutcome::Consumed {
                         debug!("Event consumed by main component");
                         continue;
                     }

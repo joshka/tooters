@@ -18,7 +18,6 @@ pub enum Event {
     Tick,
     Quit,
     CrosstermEvent(CrosstermEvent),
-    UserAuthenticated,
 }
 
 #[derive(Debug)]

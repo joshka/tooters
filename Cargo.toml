@@ -12,10 +12,13 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 anyhow = "1.0"
+axum = { version = "0.6", features = ["tokio"] }
 crossterm = { version = "0.26", features = ["event-stream"] }
+femme = "2.2"
 futures = "0.3"
 html2text = "0.5"
 tui-input = "0.7"
+log = "0.4"
 mastodon-async = { version = "1.2", features = ["toml"] }
 ratatui = { version = "0.20" }
 signal-hook = "0.3"
@@ -32,6 +35,8 @@ tokio = { version = "1", features = [
 tracing = "0.1"
 tracing-appender = "0.2"
 tracing-subscriber = "0.3"
+tracing-log = "0.1"
+webbrowser = "0.8"
 xdg = "2.4"
 
 [dev-dependencies]
