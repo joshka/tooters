@@ -1,13 +1,12 @@
 use std::sync::{Arc, RwLock};
 
-use crate::event::Event;
+use crate::{config::Config, event::Event};
 use anyhow::{Context, Result};
 use crossterm::event::{Event as CrosstermEvent, KeyCode};
 use mastodon_async::{
-    helpers::toml,
     prelude::{Account, Status},
     registration::Registered,
-    Data, Mastodon, Registration,
+    Mastodon, Registration,
 };
 use ratatui::{
     backend::Backend,
@@ -219,10 +218,11 @@ async fn run_auth_flow(
 /// authentication flow and go straight to the main app. If the credentials file doesn't exist or
 /// contains invalid credentials, the app will enter the EnterServerUrl state.
 async fn handle_load_credentials_state(auth_state: &Arc<RwLock<AuthenticationState>>) {
-    let credentials = load_credentials();
-    match credentials {
-        Ok(mastodon) => {
+    let config = Config::load();
+    match config {
+        Ok(config) => {
             info!("Loaded credentials from file");
+            let mastodon = Mastodon::from(config.data.clone());
             let account = verify_credentials(mastodon.clone()).await;
             let mut auth_state = auth_state.write().unwrap();
             auth_state.mastodon = Some(mastodon);
@@ -250,11 +250,11 @@ async fn handle_enter_server_url_state(
     event: Option<AuthenticationEvent>,
 ) {
     match event {
-        Some(AuthenticationEvent::UserEnteredServerUrl(url)) => {
-            debug!("User entered server url: {url}");
+        Some(AuthenticationEvent::UserEnteredServerUrl(server_url)) => {
+            debug!(?server_url, "User entered server url");
             let mut auth_state = auth_state.write().unwrap();
             auth_state.auth_code = None;
-            auth_state.server_url = Some(url);
+            auth_state.server_url = Some(server_url);
             auth_state.step = AuthenticationStep::RegisterClient;
         }
         event => {
@@ -387,7 +387,8 @@ async fn handle_done_state(auth_state: &Arc<RwLock<AuthenticationState>>) {
         .unwrap()
         .clone();
     let data = mastodon.data.clone();
-    if let Err(err) = save_credentials(data) {
+    let config = Config { data };
+    if let Err(err) = config.save() {
         error!(?err, "Failed to save credentials");
         auth_state.write().unwrap().error = Some(format!("Failed to save credentials: {:?}", err));
     } else {
@@ -411,36 +412,6 @@ async fn authenticate(registered: Registered, auth_code: String) -> Result<Masto
         .complete(auth_code)
         .await
         .context("Error authenticating with server")
-}
-
-/// Loads the config file from the XDG config directory
-/// e.g. ~/.config/tooters/config.toml
-fn load_credentials() -> Result<Mastodon> {
-    let xdg = xdg::BaseDirectories::with_prefix("tooters")?;
-    let config_file = xdg.get_config_file("config.toml");
-    let data = toml::from_file(&config_file).with_context(|| {
-        format!(
-            "Unable to read config file from: {}",
-            &config_file.to_string_lossy()
-        )
-    })?;
-    Ok(Mastodon::from(data))
-}
-
-/// Saves the config file to the XDG config directory
-/// e.g. ~/.config/tooters/config.toml
-/// If the file already exists, it will be overwritten
-/// If the directory does not exist, it will be created
-fn save_credentials(data: Data) -> Result<()> {
-    let xdg = xdg::BaseDirectories::with_prefix("tooters")?;
-    let config_file = xdg.place_config_file("config.toml")?;
-    toml::to_file(&data, &config_file).with_context(|| {
-        format!(
-            "Unable to write config file to: {}",
-            &config_file.to_string_lossy()
-        )
-    })?;
-    Ok(())
 }
 
 async fn verify_credentials(mastodon: Mastodon) -> Result<Account> {
