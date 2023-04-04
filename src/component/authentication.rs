@@ -12,8 +12,9 @@ use ratatui::{
     backend::Backend,
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Modifier, Style},
-    widgets::{Paragraph, Widget, Wrap},
+    style::{self, Color, Modifier, Style},
+    text::Span,
+    widgets::{Block, Paragraph, Widget, Wrap},
     Frame,
 };
 use tokio::sync::{
@@ -82,23 +83,31 @@ impl AuthenticationComponent {
 
 impl Component for AuthenticationComponent {
     fn draw(&self, f: &mut Frame<impl Backend>, area: Rect) {
-        f.render_widget(self, area);
+        let widget = AuthenticationWidget {
+            error: self.auth_state.read().unwrap().error.clone(),
+            server_url: self.server_url_input.value().to_string(),
+            authorization_url: self
+                .auth_state
+                .read()
+                .unwrap()
+                .registered
+                .as_ref()
+                .map(|r| {
+                    r.authorize_url()
+                        .unwrap_or("Invalid Authorize URL".to_string())
+                }),
+            auth_code: self.auth_code_input.value().to_string(),
+        };
         match self.auth_state.read().unwrap().step {
             AuthenticationStep::EnterServerUrl => {
-                f.set_cursor(area.x + self.server_url_input.visual_cursor() as u16, area.y + 3);
+                f.set_cursor(area.x + self.server_url_input.cursor() as u16, area.y + 6);
             }
             AuthenticationStep::EnterAuthenticationCode => {
-                f.set_cursor(
-                    area.x + self.auth_code_input.visual_cursor() as u16,
-                    area.y + 8,
-                );
+                f.set_cursor(area.x + self.auth_code_input.cursor() as u16, area.y + 13);
             }
             _ => {}
-            // TODO show these to indicate that we're loading in case they take a while
-            // AuthenticationStep::RegisterClient => todo!(),
-            // AuthenticationStep::Authenticate => todo!(),
-            // AuthenticationStep::Done => todo!(),
         }
+        widget.draw(f, area);
     }
 
     fn handle_event(&mut self, event: &Event) -> EventOutcome {
@@ -286,6 +295,9 @@ async fn handle_register_client_state(auth_state: &Arc<RwLock<AuthenticationStat
         .clone();
     // TODO we should allow the user to hit Escape to interrupt the registration process here
     // by using select! and checking the event_receiver
+    // TODO save client registration so we don't have to register a new client every time
+    // It's not the end of the world as a large server might have thousands of clients registered
+    // but it's still a bit annoying
     match register_client(server_url).await {
         Ok(registered) => {
             debug!("Successfully registered client");
@@ -338,6 +350,7 @@ async fn handle_enter_authentication_code_state(
 /// to authenticate with the server and enter the Done state. If the app fails to authenticate with
 /// the server, the app will enter the EnterServerUrl state.
 async fn handle_authenticate_state(auth_state: &Arc<RwLock<AuthenticationState>>) {
+    // This method chain is ugly
     let registered = auth_state
         .read()
         .unwrap()
@@ -424,66 +437,85 @@ async fn verify_credentials(mastodon: Mastodon) -> Result<Account> {
     Ok(account)
 }
 
-impl Widget for &AuthenticationComponent {
+#[derive(Debug)]
+pub struct AuthenticationWidget {
+    error: Option<String>,
+    server_url: String,
+    authorization_url: Option<String>,
+    auth_code: String,
+}
+
+impl Default for AuthenticationWidget {
+    fn default() -> Self {
+        Self {
+            error: None,
+            server_url: String::from("https://mastodon.social"),
+            authorization_url: Some(String::from("https://mastodon.social/oauth/authorize?client_id=Fc54rQloytaQc_B-sfnLZNHAJ0_PcWPmDKj7qzSY4rM&redirect_uri=urn:ietf:wg:oauth:2.0:oob&scope=read&response_type=code")),
+            auth_code: String::from("aaaaaaZJ3L2CuIzyrIDyuJ0AMaaaC7x3K7yyqaaaaaaa"),
+        }
+    }
+}
+impl AuthenticationWidget {
+    fn draw(self, f: &mut Frame<impl Backend>, area: Rect) {
+        f.render_widget(self, area);
+    }
+}
+
+impl Widget for AuthenticationWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(1), // 1. step
-                Constraint::Length(1), // 2. error message
-                Constraint::Length(1), // 3. server url label
-                Constraint::Length(1), // 4. server url input
-                Constraint::Length(1), // 5. authorization url label
-                Constraint::Length(2), // 6. authorization url
-                Constraint::Length(1), // 7. authentication code label
-                Constraint::Length(1), // 8. authentication code input
-                Constraint::Min(1),    // 9. empty space for a toot
-            ])
-            .split(area);
+        let message_height = 2;
+        let error_height = if self.error.is_some() { 3 } else { 0 };
+        let server_url_height = 3;
+        let authorization_url_height = 4;
+        let auth_code_height = 3;
 
-        let auth_state = self.auth_state.read().unwrap();
-        let bold = Style::default().add_modifier(Modifier::BOLD);
-        Paragraph::new(format!("Current Step: {:?}", auth_state.step))
-            .style(bold)
-            .render(layout[0], buf);
-        if auth_state.error.is_some() {
-            Paragraph::new(format!("Error: {}", auth_state.error.as_ref().unwrap()))
-                .render(layout[1], buf);
-        }
-        Paragraph::new("Enter Server URL:")
-            .style(bold)
-            .render(layout[2], buf);
-        Paragraph::new(self.server_url_input.value()).render(layout[3], buf);
-
-        if auth_state.step == AuthenticationStep::EnterAuthenticationCode {
-            Paragraph::new("Goto the following URL and enter the authentication code below:")
-                .style(bold)
-                .render(layout[4], buf);
-            // woah!
-            if let Ok(authorization_url) = self
-                .auth_state
-                .clone()
-                .read()
-                .unwrap()
-                .registered
+        if let [message_area, error_area, server_url_area, authorization_url_area, auth_code_area] =
+            *Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Length(message_height),
+                    Constraint::Length(error_height),
+                    Constraint::Length(server_url_height),
+                    Constraint::Length(authorization_url_height),
+                    Constraint::Length(auth_code_height),
+                ])
+                .split(area)
                 .as_ref()
-                .unwrap()
-                .authorize_url()
-            {
-                Paragraph::new(authorization_url)
-                    .wrap(Wrap { trim: true })
-                    .render(layout[5], buf);
-            }
-            Paragraph::new("Authentication Code: ")
-                .style(bold)
-                .render(layout[6], buf);
-            Paragraph::new(self.auth_code_input.value()).render(layout[7], buf);
-        }
+        {
+            let bold = Style::default().add_modifier(Modifier::BOLD);
+            // Welcome message
+            Paragraph::new("Welcome to tooters. Sign in to your mastodon server")
+                .render(message_area, buf);
 
-        if let Some(toot) = auth_state.toot.as_ref() {
-            let html = toot.content.clone();
-            let text = html2text::from_read(html.as_bytes(), area.width as usize);
-            Paragraph::new(text).render(layout[8], buf);
+            // Error
+            if let Some(error) = self.error {
+                let title = Span::styled("Error: ", style::Style::default().fg(Color::Red));
+                Paragraph::new(error)
+                    .style(style::Style::default().fg(Color::Red))
+                    .block(Block::default().title(title))
+                    .render(error_area, buf);
+            }
+
+            // Server URL
+            let title = Span::styled("Enter the URL of your server:", bold);
+            Paragraph::new(self.server_url)
+                .block(Block::default().title(title))
+                .render(server_url_area, buf);
+
+            // Authorization URL
+            let title = Span::styled("Goto the following URL, authorize tooters to access your account, and then paste the authentication code below:", bold);
+            if let Some(authorization_url) = self.authorization_url {
+                Paragraph::new(authorization_url)
+                    .block(Block::default().title(title))
+                    .wrap(Wrap { trim: true })
+                    .render(authorization_url_area, buf);
+
+                // Authentication Code
+                let title = Span::styled("Authentication Code:", bold);
+                Paragraph::new(self.auth_code)
+                    .block(Block::default().title(title))
+                    .render(auth_code_area, buf);
+            }
         }
     }
 }
