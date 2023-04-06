@@ -1,6 +1,7 @@
 use super::{AuthenticationComponent, EventOutcome};
 use crate::{
     event::Event,
+    log::LogMessage,
     widgets::{LogWidget, StatusBar, TitleBar},
 };
 use ratatui::{
@@ -12,15 +13,14 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::Sender;
 use tracing::info;
 
-#[derive(Debug)]
 pub struct RootComponent {
     _event_sender: Sender<Event>,
     auth: AuthenticationComponent,
-    logs: Arc<Mutex<Vec<String>>>,
+    logs: Arc<Mutex<Vec<LogMessage>>>,
 }
 
 impl RootComponent {
-    pub fn new(_event_sender: Sender<Event>, logs: Arc<Mutex<Vec<String>>>) -> Self {
+    pub fn new(_event_sender: Sender<Event>, logs: Arc<Mutex<Vec<LogMessage>>>) -> Self {
         let auth = AuthenticationComponent::new(_event_sender.clone());
         Self {
             _event_sender,

@@ -1,18 +1,20 @@
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Rect},
-    style::{Color, Style},
+    style::{Color, Modifier, Style},
     text::{Span, Spans},
     widgets::{Block, Borders, Paragraph, Widget, Wrap},
 };
 use std::sync::{Arc, Mutex};
 
+use crate::log::LogMessage;
+
 pub struct LogWidget {
-    logs: Arc<Mutex<Vec<String>>>,
+    logs: Arc<Mutex<Vec<LogMessage>>>,
 }
 
 impl LogWidget {
-    pub fn new(logs: Arc<Mutex<Vec<String>>>) -> Self {
+    pub fn new(logs: Arc<Mutex<Vec<LogMessage>>>) -> Self {
         Self { logs }
     }
 }
@@ -29,7 +31,23 @@ impl Widget for LogWidget {
 
         let text = logs[start_index..]
             .iter()
-            .map(|log| Spans::from(Span::styled(log.clone(), Style::default().fg(Color::White))))
+            .map(|log| {
+                let level_color = match log.level.as_str() {
+                    "ERROR" => Color::Red,
+                    "WARN" => Color::Yellow,
+                    "INFO" => Color::Green,
+                    "DEBUG" => Color::Blue,
+                    "TRACE" => Color::Cyan,
+                    _ => Color::White,
+                };
+                Spans::from(vec![
+                    Span::styled(&log.level, Style::default().fg(level_color)),
+                    Span::raw(" "),
+                    Span::styled(&log.target, Style::default().add_modifier(Modifier::DIM)),
+                    Span::styled(": ", Style::default().add_modifier(Modifier::DIM)),
+                    Span::styled(&log.message, Style::default()),
+                ])
+            })
             .collect::<Vec<_>>();
 
         let paragraph = Paragraph::new(text)

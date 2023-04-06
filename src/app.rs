@@ -1,6 +1,7 @@
 use crate::{
     component::{EventOutcome, RootComponent},
     event::{Event, Events},
+    log::LogMessage,
     ui::UI,
 };
 use crossterm::event::{
@@ -10,7 +11,7 @@ use crossterm::event::{
 use std::sync::{Arc, Mutex};
 use tracing::{debug, info, trace};
 
-pub async fn run(logs: Arc<Mutex<Vec<String>>>) -> anyhow::Result<()> {
+pub async fn run(logs: Arc<Mutex<Vec<LogMessage>>>) -> anyhow::Result<()> {
     let mut app = App::new(logs);
     app.run().await?;
     Ok(())
@@ -23,7 +24,7 @@ struct App {
 }
 
 impl App {
-    pub fn new(logs: Arc<Mutex<Vec<String>>>) -> Self {
+    pub fn new(logs: Arc<Mutex<Vec<LogMessage>>>) -> Self {
         let events = Events::new();
         let root = RootComponent::new(events.tx.clone(), logs);
         Self {

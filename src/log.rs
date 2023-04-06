@@ -7,7 +7,13 @@ use tracing::{
 use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
 
 pub struct LogCollector {
-    logs: Arc<Mutex<Vec<String>>>,
+    logs: Arc<Mutex<Vec<LogMessage>>>,
+}
+
+pub struct LogMessage {
+    pub level: String,
+    pub target: String,
+    pub message: String,
 }
 
 impl LogCollector {
@@ -17,7 +23,7 @@ impl LogCollector {
         }
     }
 
-    pub fn logs(&self) -> Arc<Mutex<Vec<String>>> {
+    pub fn logs(&self) -> Arc<Mutex<Vec<LogMessage>>> {
         self.logs.clone()
     }
 }
@@ -29,12 +35,17 @@ where
     fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
         let mut logs = self.logs.lock().unwrap();
         let metadata = event.metadata();
-        let level = metadata.level();
+        let level = metadata.level().to_string();
         let target = metadata.target();
         let mut visitor = MessageVisitor::default();
         event.record(&mut visitor);
         let message = visitor.message;
-        logs.push(format!("[{}] {} {:?}", level, target, message));
+        let log = LogMessage {
+            level,
+            target: target.to_string(),
+            message,
+        };
+        logs.push(log);
     }
 }
 

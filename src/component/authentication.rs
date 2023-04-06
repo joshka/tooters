@@ -123,8 +123,7 @@ async fn authorize(rx: Receiver<String>) -> Result<Mastodon> {
     let server_url = get_server_url(rx).await?;
     info!("Registering Tooters at: {}", server_url);
     let registered = get_registered(server_url).await?;
-    let (base, client_id, ..) = registered.clone().into_parts();
-    info!("Tooters registered at: {} client_id: {}", base, client_id);
+    info!("Tooters client registered");
     let auth_code = get_auth_code(&registered).await?;
     debug!("Auth code: {}", auth_code);
     let mastodon = get_mastodon(&registered, auth_code).await?;
