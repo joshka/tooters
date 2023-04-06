@@ -7,10 +7,11 @@ use crossterm::event::{
     Event::Key,
     KeyCode::{self, Char},
 };
+use std::sync::{Arc, Mutex};
 use tracing::{debug, info, trace};
 
-pub async fn run() -> anyhow::Result<()> {
-    let mut app = App::default();
+pub async fn run(logs: Arc<Mutex<Vec<String>>>) -> anyhow::Result<()> {
+    let mut app = App::new(logs);
     app.run().await?;
     Ok(())
 }
@@ -21,16 +22,10 @@ struct App {
     root: RootComponent,
 }
 
-impl Default for App {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl App {
-    pub fn new() -> Self {
+    pub fn new(logs: Arc<Mutex<Vec<String>>>) -> Self {
         let events = Events::new();
-        let root = RootComponent::new(events.tx.clone());
+        let root = RootComponent::new(events.tx.clone(), logs);
         Self {
             events,
             ui: UI::new(),

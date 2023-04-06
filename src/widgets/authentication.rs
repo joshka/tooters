@@ -26,7 +26,7 @@ impl AuthenticationWidget {
 
 impl Widget for AuthenticationWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let message_height = 3;
+        let message_height = 10;
         let server_url_height = 3;
 
         if let [message_area, server_url_area] = *Layout::default()

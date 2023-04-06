@@ -3,6 +3,7 @@ use anyhow::{Context, Result};
 use crossterm::event::{Event as CrosstermEvent, KeyCode};
 use mastodon_async::{registration::Registered, Mastodon, Registration, StatusBuilder};
 use ratatui::{backend::Backend, layout::Rect, Frame};
+use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tracing::{debug, error, info, trace, warn};
 use tui_input::{backend::crossterm::EventHandler, Input};
@@ -15,6 +16,7 @@ pub struct AuthenticationComponent {
     server_url_input: Input,
     server_url_sender: Option<Sender<String>>,
     authenticated: bool,
+    error: Arc<Mutex<Option<String>>>,
 }
 
 impl AuthenticationComponent {
@@ -24,6 +26,7 @@ impl AuthenticationComponent {
             server_url_input: Input::new("https://mastodon.social".to_string()),
             server_url_sender: None,
             authenticated: false,
+            error: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -39,15 +42,19 @@ impl AuthenticationComponent {
                 return Ok(());
             }
             Err(e) => {
-                debug!("Error loading config: {:?}", e);
+                info!("Error loading config: {}", e);
             }
         };
         let (tx, rx) = tokio::sync::mpsc::channel(1);
         self.server_url_sender = Some(tx);
+        let error = self.error.clone();
         tokio::spawn(async move {
             match run(rx).await {
-                Ok(_) => info!("Authentication component finished"),
-                Err(e) => error!("Authentication component failed: {:?}", e),
+                Ok(_) => info!("Authentication attempt finished"),
+                Err(e) => {
+                    error!("Authentication attempt failed: {:?}", e);
+                    *error.lock().unwrap() = Some(e.to_string());
+                }
             }
         });
         Ok(())
@@ -64,7 +71,7 @@ impl AuthenticationComponent {
                     tx.clone()
                         .send(self.server_url_input.value().to_string())
                         .await
-                        .unwrap();
+                        .ok();
                 }
             }
             Event::CrosstermEvent(e) => {
@@ -75,14 +82,15 @@ impl AuthenticationComponent {
     }
 
     pub fn draw(&self, f: &mut Frame<impl Backend>, area: Rect) {
-        let widget = AuthenticationWidget::new(None, self.server_url_input.value().to_string());
+        let error = self.error.lock().unwrap().clone();
+        let widget = AuthenticationWidget::new(error, self.server_url_input.value().to_string());
         widget.draw(f, area);
     }
 }
 
 async fn load_config() -> Result<Mastodon> {
-    let config = Config::load().context("loading config failed")?;
-    debug!("Loaded config: {:?}", config);
+    let config = Config::load()?;
+    info!("Loaded config");
     let mastodon = Mastodon::from(config.data);
     let account = mastodon.verify_credentials().await?;
     info!("Logged in as {}", account.username);
@@ -90,7 +98,7 @@ async fn load_config() -> Result<Mastodon> {
 }
 
 async fn run(rx: Receiver<String>) -> Result<()> {
-    debug!("Running authentication flow");
+    info!("Running authentication flow");
     let mastodon = authorize(rx)
         .await
         .context("Error authorizing with mastodon")?;
@@ -103,16 +111,20 @@ async fn run(rx: Receiver<String>) -> Result<()> {
         .status("Hello from tooters!")
         .build()
         .unwrap();
-    mastodon.new_status(status).await.unwrap();
+    mastodon
+        .new_status(status)
+        .await
+        .context("Error creating status")?;
     Ok(())
 }
 
 async fn authorize(rx: Receiver<String>) -> Result<Mastodon> {
-    debug!("Waiting for server url...");
+    info!("Waiting for server url...");
     let server_url = get_server_url(rx).await?;
-    debug!("Server url: {}", server_url);
+    info!("Registering Tooters at: {}", server_url);
     let registered = get_registered(server_url).await?;
-    debug!("Registered client: {:?}", registered);
+    let (base, client_id, ..) = registered.clone().into_parts();
+    info!("Tooters registered at: {} client_id: {}", base, client_id);
     let auth_code = get_auth_code(&registered).await?;
     debug!("Auth code: {}", auth_code);
     let mastodon = get_mastodon(&registered, auth_code).await?;

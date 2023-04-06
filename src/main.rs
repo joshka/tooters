@@ -1,35 +1,31 @@
 use std::panic;
-use tooters::app;
+use tooters::{app, log::LogCollector};
 use tracing::{error, info, metadata::LevelFilter};
-// use tracing_log::LogTracer;
-// use log;
+use tracing_subscriber::{fmt, prelude::*, EnvFilter, Registry};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // femme::with_level(log::LevelFilter::Trace);
-
-    // LogTracer::builder()
-    //     .ignore_crate("foo") // suppose the `foo` crate is using `tracing`'s log feature
-    //     .with_max_level(log::LevelFilter::Trace)
-    //     .init()?;
-
     let file_appender = tracing_appender::rolling::hourly("./", "tooters.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
-    tracing_subscriber::fmt()
-        // .pretty()
-        // .full()
-        // .compact()
-        // .with_max_level(LevelFilter::INFO)
-        .with_max_level(LevelFilter::DEBUG)
-        // .with_max_level(LevelFilter::TRACE)
-        .with_writer(non_blocking)
-        .with_timer(tracing_subscriber::fmt::time::uptime())
-        .init();
+
+    let log_collector = LogCollector::new();
+    let logs = log_collector.logs();
+
+    let subscriber = Registry::default()
+        .with(EnvFilter::from_default_env().add_directive(LevelFilter::INFO.into()))
+        .with(
+            fmt::layer()
+                .with_writer(non_blocking)
+                .with_timer(tracing_subscriber::fmt::time::uptime()),
+        )
+        .with(log_collector);
+
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     panic::set_hook(Box::new(|info| {
         error!("Panic: {:?}", info);
     }));
-    app::run().await?;
+    app::run(logs.clone()).await?;
     info!("Exiting");
     Ok(())
 }
