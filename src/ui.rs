@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::{backend::CrosstermBackend, Frame, Terminal};
 use std::io::{self, Stdout};
@@ -11,10 +11,10 @@ pub struct UI {
 }
 
 impl UI {
-    pub fn new() -> Self {
-        Self {
-            terminal: Terminal::new(Backend::new(io::stdout())).unwrap(),
-        }
+    pub fn new() -> Result<Self> {
+        let terminal =
+            Terminal::new(Backend::new(io::stdout())).context("Failed to create terminal")?;
+        Ok(Self { terminal })
     }
 
     pub fn start(&mut self) -> Result<()> {

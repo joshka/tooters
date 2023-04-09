@@ -1,3 +1,4 @@
+use parking_lot::Mutex;
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Rect},
@@ -5,9 +6,9 @@ use ratatui::{
     text::{Span, Spans},
     widgets::{Block, Borders, Paragraph, Widget, Wrap},
 };
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use crate::log::LogMessage;
+use crate::logging::LogMessage;
 
 pub struct LogWidget {
     logs: Arc<Mutex<Vec<LogMessage>>>,
@@ -21,7 +22,7 @@ impl LogWidget {
 
 impl Widget for LogWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let logs = self.logs.lock().unwrap();
+        let logs = self.logs.lock();
         let max_lines = area.height as usize;
         let start_index = if logs.len() > max_lines {
             logs.len() - max_lines

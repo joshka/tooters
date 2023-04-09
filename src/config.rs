@@ -8,14 +8,14 @@ pub struct Config {
 
 impl From<Data> for Config {
     fn from(data: Data) -> Self {
-        Config { data }
+        Self { data }
     }
 }
 
 impl Config {
     /// Loads the config file from the XDG config directory
     /// e.g. ~/.config/tooters/config.toml
-    pub fn load() -> Result<Config> {
+    pub fn load() -> Result<Self> {
         let xdg = xdg::BaseDirectories::with_prefix("tooters")?;
         let config_file = xdg.get_config_file("config.toml");
         let data = toml::from_file(&config_file).with_context(|| {
@@ -24,14 +24,14 @@ impl Config {
                 &config_file.to_string_lossy()
             )
         })?;
-        Ok(Config { data })
+        Ok(Self { data })
     }
 
     /// Saves the config file to the XDG config directory
     /// e.g. ~/.config/tooters/config.toml
     /// If the file already exists, it will be overwritten
     /// If the directory does not exist, it will be created
-    pub fn save(&self) -> Result<()> {
+    pub fn save(&self) -> Result<String> {
         let xdg = xdg::BaseDirectories::with_prefix("tooters")?;
         let config_file = xdg.place_config_file("config.toml")?;
         toml::to_file(&self.data, &config_file).with_context(|| {
@@ -40,6 +40,6 @@ impl Config {
                 &config_file.to_string_lossy()
             )
         })?;
-        Ok(())
+        Ok(config_file.to_string_lossy().to_string())
     }
 }

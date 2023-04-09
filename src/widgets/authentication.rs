@@ -15,7 +15,7 @@ pub struct AuthenticationWidget {
 }
 
 impl AuthenticationWidget {
-    pub fn new(error: Option<String>, server_url: String) -> Self {
+    pub const fn new(error: Option<String>, server_url: String) -> Self {
         Self { error, server_url }
     }
 

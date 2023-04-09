@@ -1,18 +1,20 @@
 use crate::{
     component::{EventOutcome, RootComponent},
     event::{Event, Events},
-    log::LogMessage,
+    logging::LogMessage,
     ui::UI,
 };
+use anyhow::{Context, Result};
 use crossterm::event::{
     Event::Key,
     KeyCode::{self, Char},
 };
-use std::sync::{Arc, Mutex};
+use parking_lot::Mutex;
+use std::sync::Arc;
 use tracing::{debug, info, trace};
 
-pub async fn run(logs: Arc<Mutex<Vec<LogMessage>>>) -> anyhow::Result<()> {
-    let mut app = App::new(logs);
+pub async fn run(logs: Arc<Mutex<Vec<LogMessage>>>) -> Result<()> {
+    let mut app = App::new(logs)?;
     app.run().await?;
     Ok(())
 }
@@ -24,20 +26,19 @@ struct App {
 }
 
 impl App {
-    pub fn new(logs: Arc<Mutex<Vec<LogMessage>>>) -> Self {
+    pub fn new(logs: Arc<Mutex<Vec<LogMessage>>>) -> Result<Self> {
         let events = Events::new();
         let root = RootComponent::new(events.tx.clone(), logs);
-        Self {
-            events,
-            ui: UI::new(),
-            root,
-        }
+        let ui = UI::new()
+            .context("Failed to initialize UI")
+            .context("Failed to initialize UI")?;
+        Ok(Self { events, ui, root })
     }
-    pub async fn run(&mut self) -> anyhow::Result<()> {
+    pub async fn run(&mut self) -> Result<()> {
         info!("Running");
-        self.ui.start()?;
-        self.events.start()?;
-        self.root.start().await;
+        self.ui.start().context("starting ui")?;
+        self.events.start().context("starting event")?;
+        self.root.start().await.context("starting root component")?;
         loop {
             self.ui.draw(|f| {
                 self.root.draw(f, f.size());

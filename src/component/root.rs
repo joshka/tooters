@@ -1,15 +1,17 @@
 use super::{AuthenticationComponent, EventOutcome};
 use crate::{
     event::Event,
-    log::LogMessage,
+    logging::LogMessage,
     widgets::{LogWidget, StatusBar, TitleBar},
 };
+use anyhow::Context;
+use parking_lot::Mutex;
 use ratatui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
     Frame,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use tracing::info;
 
@@ -29,9 +31,12 @@ impl RootComponent {
         }
     }
 
-    pub async fn start(&mut self) {
+    pub async fn start(&mut self) -> anyhow::Result<()> {
         info!("Starting root component");
-        self.auth.start().await.unwrap();
+        self.auth
+            .start()
+            .await
+            .context("Failed to start authentication component")
     }
 
     pub async fn handle_event(&mut self, event: &Event) -> EventOutcome {

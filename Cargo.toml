@@ -20,6 +20,7 @@ html2text = "0.5"
 tui-input = "0.7"
 log = "0.4"
 mastodon-async = { version = "1.2", features = ["toml"] }
+parking_lot = "0.12"
 ratatui = { version = "0.20" }
 signal-hook = "0.3"
 signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }

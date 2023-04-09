@@ -1,9 +1,11 @@
-use crate::{config::Config, event::Event, widgets::AuthenticationWidget};
+use crate::{authentication_server, config::Config, event::Event, widgets::AuthenticationWidget};
 use anyhow::{Context, Result};
 use crossterm::event::{Event as CrosstermEvent, KeyCode};
-use mastodon_async::{registration::Registered, Mastodon, Registration, StatusBuilder};
+use mastodon_async::{
+    registration::Registered, scopes::Scopes, Mastodon, Registration, StatusBuilder,
+};
 use ratatui::{backend::Backend, layout::Rect, Frame};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tracing::{debug, error, info, trace, warn};
 use tui_input::{backend::crossterm::EventHandler, Input};
@@ -16,7 +18,7 @@ pub struct AuthenticationComponent {
     server_url_input: Input,
     server_url_sender: Option<Sender<String>>,
     authenticated: bool,
-    error: Arc<Mutex<Option<String>>>,
+    error: Arc<RwLock<Option<String>>>,
 }
 
 impl AuthenticationComponent {
@@ -26,11 +28,11 @@ impl AuthenticationComponent {
             server_url_input: Input::new("https://mastodon.social".to_string()),
             server_url_sender: None,
             authenticated: false,
-            error: Arc::new(Mutex::new(None)),
+            error: Arc::new(RwLock::new(None)),
         }
     }
 
-    pub fn title(&self) -> &'static str {
+    pub const fn title(&self) -> &'static str {
         "Authentication"
     }
 
@@ -47,13 +49,20 @@ impl AuthenticationComponent {
         };
         let (tx, rx) = tokio::sync::mpsc::channel(1);
         self.server_url_sender = Some(tx);
-        let error = self.error.clone();
+        let error = Arc::clone(&self.error);
         tokio::spawn(async move {
             match run(rx).await {
                 Ok(_) => info!("Authentication attempt finished"),
                 Err(e) => {
                     error!("Authentication attempt failed: {:?}", e);
-                    *error.lock().unwrap() = Some(e.to_string());
+                    match error.write() {
+                        Ok(mut error) => {
+                            *error = Some(e.to_string());
+                        }
+                        Err(e) => {
+                            error!("Error displaying error: {:?}", e);
+                        }
+                    }
                 }
             }
         });
@@ -82,7 +91,13 @@ impl AuthenticationComponent {
     }
 
     pub fn draw(&self, f: &mut Frame<impl Backend>, area: Rect) {
-        let error = self.error.lock().unwrap().clone();
+        let error = match self.error.read() {
+            Ok(error) => error.clone(),
+            Err(e) => {
+                error!("Error locking error for read: {:?}", e);
+                Some("Error locking error for read".to_string())
+            }
+        };
         let widget = AuthenticationWidget::new(error, self.server_url_input.value().to_string());
         widget.draw(f, area);
     }
@@ -102,19 +117,27 @@ async fn run(rx: Receiver<String>) -> Result<()> {
     let mastodon = authorize(rx)
         .await
         .context("Error authorizing with mastodon")?;
-    if let Err(e) = Config::from(mastodon.data.clone()).save() {
-        error!("Error saving config: {:?}", e);
+    let config = Config::from(mastodon.data.clone());
+    match config.save() {
+        Ok(path) => info!("Saved config to {path}"),
+        Err(e) => warn!("Error saving config: {}", e),
     }
     let account = mastodon.verify_credentials().await?;
     info!("Logged in as {}", account.username);
+    send_test_toot(mastodon).await?;
+    Ok(())
+}
+
+async fn send_test_toot(mastodon: Mastodon) -> Result<(), anyhow::Error> {
     let status = StatusBuilder::new()
         .status("Hello from tooters!")
         .build()
-        .unwrap();
+        .context("Unable to build test status")?;
     mastodon
         .new_status(status)
         .await
-        .context("Error creating status")?;
+        .context("Unabled to send create status")?;
+    info!("Tooted 'Hello from tooters' successfully!");
     Ok(())
 }
 
@@ -144,6 +167,7 @@ async fn get_registered(server_url: String) -> Result<Registered> {
         .client_name("Tooters")
         .website("https://github.com/joshka/tooters")
         .redirect_uris("http://localhost:7007/callback")
+        .scopes(Scopes::all())
         .build()
         .await
         .context(format!(
@@ -169,69 +193,8 @@ async fn get_auth_code(registered: &Registered) -> Result<String> {
     } else {
         warn!("Unable to open browser, please open this url: {}", auth_url);
     };
-    let auth_code = webserver::get_code()
+    let auth_code = authentication_server::get_code()
         .await
         .context("Error getting auth code from webserver")?;
     Ok(auth_code)
-}
-
-mod webserver {
-    use axum::extract::Query;
-    use axum::{extract::State, routing::get, Router};
-    use std::collections::HashMap;
-    use std::sync::Arc;
-    use tokio::sync::{mpsc, oneshot};
-    use tracing::{error, info};
-
-    pub async fn get_code() -> anyhow::Result<String> {
-        let (tx, mut rx) = mpsc::channel(1);
-        let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
-        let server_handle = tokio::spawn(async {
-            run_server(tx, shutdown_rx).await;
-        });
-        let code = rx.recv().await;
-        shutdown_tx.send(()).unwrap_or_else(|e| {
-            error!("Failed to send shutdown message to server: {:?}", e);
-        });
-        server_handle.await.unwrap_or_else(|e| {
-            error!("Server task failed: {:?}", e);
-        });
-        Ok(code.unwrap())
-    }
-
-    async fn run_server(tx: mpsc::Sender<String>, shutdown_rx: oneshot::Receiver<()>) {
-        let state = Arc::new(tx);
-        let addr = ([127, 0, 0, 1], 7007).into();
-        let router = Router::new()
-            .route("/callback", get(handler))
-            .with_state(state);
-        info!("Listening on http://{addr}", addr = addr);
-        axum::Server::bind(&addr)
-            .serve(router.into_make_service())
-            .with_graceful_shutdown(async {
-                shutdown_rx.await.unwrap();
-                info!("Shutting down server...")
-            })
-            .await
-            .unwrap();
-        info!("Server shutdown.")
-    }
-
-    async fn handler(
-        State(state): State<Arc<mpsc::Sender<String>>>,
-        Query(params): Query<HashMap<String, String>>,
-    ) -> &'static str {
-        if let Some(code) = params.get("code") {
-            state
-                .clone()
-                .send(code.to_string())
-                .await
-                .unwrap_or_else(|e| {
-                    error!("Failed to send code: {:?}", e);
-                });
-            "Authorized. You can close this window."
-        } else {
-            "Authorization failed. You can close this window."
-        }
-    }
 }

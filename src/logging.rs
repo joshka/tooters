@@ -1,11 +1,13 @@
 use core::fmt;
-use std::sync::{Arc, Mutex};
+use parking_lot::Mutex;
+use std::sync::Arc;
 use tracing::{
     field::{Field, Visit},
     Event, Subscriber,
 };
 use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
 
+#[derive(Default)]
 pub struct LogCollector {
     logs: Arc<Mutex<Vec<LogMessage>>>,
 }
@@ -17,12 +19,6 @@ pub struct LogMessage {
 }
 
 impl LogCollector {
-    pub fn new() -> Self {
-        Self {
-            logs: Arc::new(Mutex::new(Vec::new())),
-        }
-    }
-
     pub fn logs(&self) -> Arc<Mutex<Vec<LogMessage>>> {
         self.logs.clone()
     }
@@ -33,7 +29,7 @@ where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
     fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
-        let mut logs = self.logs.lock().unwrap();
+        let mut logs = self.logs.lock();
         let metadata = event.metadata();
         let level = metadata.level().to_string();
         let target = metadata.target();

@@ -1,5 +1,6 @@
+use anyhow::Context;
 use std::panic;
-use tooters::{app, log::LogCollector};
+use tooters::{app, logging::LogCollector};
 use tracing::{error, info, metadata::LevelFilter};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter, Registry};
 
@@ -8,7 +9,7 @@ async fn main() -> anyhow::Result<()> {
     let file_appender = tracing_appender::rolling::hourly("./", "tooters.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
-    let log_collector = LogCollector::new();
+    let log_collector = LogCollector::default();
     let logs = log_collector.logs();
 
     let subscriber = Registry::default()
@@ -20,7 +21,8 @@ async fn main() -> anyhow::Result<()> {
         )
         .with(log_collector);
 
-    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    tracing::subscriber::set_global_default(subscriber)
+        .context("setting default subscriber failed")?;
 
     panic::set_hook(Box::new(|info| {
         error!("Panic: {:?}", info);
