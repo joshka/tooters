@@ -1,8 +1,8 @@
-use super::{AuthenticationComponent, EventOutcome};
 use crate::{
-    event::Event,
-    logging::LogMessage,
-    widgets::{LogWidget, StatusBar, TitleBar},
+    authentication::AuthenticationComponent,
+    event::{Event, EventOutcome},
+    logging::{LogMessage, LogWidget},
+    widgets::{StatusBar, TitleBar},
 };
 use anyhow::Context;
 use parking_lot::Mutex;

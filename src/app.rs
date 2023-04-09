@@ -1,7 +1,7 @@
 use crate::{
-    component::{EventOutcome, RootComponent},
-    event::{Event, Events},
+    event::{Event, EventOutcome, Events},
     logging::LogMessage,
+    root::RootComponent,
     ui::UI,
 };
 use anyhow::{Context, Result};

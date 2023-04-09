@@ -1,4 +1,8 @@
-use crate::{authentication_server, config::Config, event::Event, widgets::AuthenticationWidget};
+use crate::{
+    authentication::{server, widget::AuthenticationWidget},
+    config::Config,
+    event::Event,
+};
 use anyhow::{Context, Result};
 use crossterm::event::{Event as CrosstermEvent, KeyCode};
 use mastodon_async::{
@@ -10,7 +14,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use tracing::{debug, error, info, trace, warn};
 use tui_input::{backend::crossterm::EventHandler, Input};
 
-use super::EventOutcome;
+use crate::event::EventOutcome;
 
 #[derive(Debug)]
 pub struct AuthenticationComponent {
@@ -193,7 +197,7 @@ async fn get_auth_code(registered: &Registered) -> Result<String> {
     } else {
         warn!("Unable to open browser, please open this url: {}", auth_url);
     };
-    let auth_code = authentication_server::get_code()
+    let auth_code = server::get_code()
         .await
         .context("Error getting auth code from webserver")?;
     Ok(auth_code)

@@ -102,3 +102,9 @@ impl Events {
         })
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EventOutcome {
+    Consumed,
+    NotConsumed,
+}
