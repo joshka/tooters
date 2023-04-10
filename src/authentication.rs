@@ -1,4 +1,4 @@
-use crate::event::EventOutcome;
+use crate::event::Outcome;
 use crate::{config::Config, event::Event};
 use anyhow::{Context, Result};
 use axum::{
@@ -18,7 +18,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Modifier, Style},
     text::Span,
-    widgets::{Block, Paragraph, Widget},
+    widgets::{Block, Paragraph},
 };
 use std::{
     collections::HashMap,
@@ -29,7 +29,7 @@ use tracing::{debug, error, info, trace, warn};
 use tui_input::{backend::crossterm::EventHandler, Input};
 
 #[derive(Debug)]
-pub struct AuthenticationComponent {
+pub struct Component {
     _app_event_sender: Sender<Event>,
     server_url_input: Input,
     server_url_sender: Option<Sender<String>>,
@@ -37,10 +37,10 @@ pub struct AuthenticationComponent {
     error: Arc<RwLock<Option<String>>>,
 }
 
-impl AuthenticationComponent {
-    pub fn new(_app_event_sender: Sender<Event>) -> Self {
+impl Component {
+    pub fn new(app_event_sender: Sender<Event>) -> Self {
         Self {
-            _app_event_sender,
+            _app_event_sender: app_event_sender,
             server_url_input: Input::new("https://mastodon.social".to_string()),
             server_url_sender: None,
             authenticated: false,
@@ -48,8 +48,8 @@ impl AuthenticationComponent {
         }
     }
 
-    pub const fn title(&self) -> &'static str {
-        "Authentication"
+    pub fn title(&self) -> String {
+        String::from("Authenticating at ") + self.server_url_input.value()
     }
 
     pub async fn start(&mut self) -> Result<()> {
@@ -84,11 +84,10 @@ impl AuthenticationComponent {
         });
         Ok(())
     }
-    pub async fn handle_event(&mut self, event: &Event) -> EventOutcome {
+    pub async fn handle_event(&mut self, event: &Event) -> Outcome {
         trace!(?event, "AuthenticationComponent::handle_event");
         match event {
-            Event::Tick => {}
-            Event::Quit => {}
+            Event::Tick | Event::Quit => {}
             Event::CrosstermEvent(CrosstermEvent::Key(key_event))
                 if key_event.code == KeyCode::Enter =>
             {
@@ -103,7 +102,7 @@ impl AuthenticationComponent {
                 self.server_url_input.handle_event(e);
             }
         }
-        EventOutcome::NotConsumed
+        Outcome::NotConsumed
     }
 
     pub fn draw(&self, f: &mut Frame<impl Backend>, area: Rect) {
@@ -114,7 +113,7 @@ impl AuthenticationComponent {
                 Some("Error locking error for read".to_string())
             }
         };
-        let widget = AuthenticationWidget::new(error, self.server_url_input.value().to_string());
+        let widget = Widget::new(error, self.server_url_input.value().to_string());
         widget.draw(f, area);
     }
 }
@@ -297,12 +296,12 @@ where
 }
 
 #[derive(Debug, Default)]
-pub struct AuthenticationWidget {
+pub struct Widget {
     error: Option<String>,
     server_url: String,
 }
 
-impl AuthenticationWidget {
+impl Widget {
     pub const fn new(error: Option<String>, server_url: String) -> Self {
         Self { error, server_url }
     }
@@ -312,7 +311,7 @@ impl AuthenticationWidget {
     }
 }
 
-impl Widget for AuthenticationWidget {
+impl ratatui::widgets::Widget for Widget {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let message_height = 10;
         let server_url_height = 3;

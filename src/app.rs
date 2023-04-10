@@ -1,7 +1,7 @@
 use crate::{
-    event::{Event, EventOutcome, Events},
+    event::{Event, Events, Outcome},
     logging::LogMessage,
-    root::RootComponent,
+    root,
     ui::UI,
 };
 use anyhow::{Context, Result};
@@ -13,6 +13,12 @@ use parking_lot::Mutex;
 use std::sync::Arc;
 use tracing::{debug, info, trace};
 
+/// Runs the application.
+/// This function is the entry point of the application.
+///
+/// # Errors
+/// Will return an error if the application fails to initialize.
+/// Will return an error if the application fails to run.
 pub async fn run(logs: Arc<Mutex<Vec<LogMessage>>>) -> Result<()> {
     let mut app = App::new(logs)?;
     app.run().await?;
@@ -22,18 +28,17 @@ pub async fn run(logs: Arc<Mutex<Vec<LogMessage>>>) -> Result<()> {
 struct App {
     events: Events,
     ui: UI,
-    root: RootComponent,
+    root: root::Component,
 }
 
 impl App {
     pub fn new(logs: Arc<Mutex<Vec<LogMessage>>>) -> Result<Self> {
         let events = Events::new();
-        let root = RootComponent::new(events.tx.clone(), logs);
-        let ui = UI::new()
-            .context("Failed to initialize UI")
-            .context("Failed to initialize UI")?;
+        let root = root::Component::new(events.tx.clone(), logs);
+        let ui = UI::new().context("Failed to initialize UI")?;
         Ok(Self { events, ui, root })
     }
+
     pub async fn run(&mut self) -> Result<()> {
         info!("Running");
         self.ui.start().context("starting ui")?;
@@ -53,7 +58,7 @@ impl App {
                     self.root.handle_event(&Event::Tick).await;
                 }
                 Some(event) => {
-                    if self.root.handle_event(&event).await == EventOutcome::Consumed {
+                    if self.root.handle_event(&event).await == Outcome::Consumed {
                         debug!("Event consumed by main component");
                         continue;
                     }

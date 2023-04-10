@@ -1,7 +1,7 @@
 use anyhow::Result;
 use crossterm::event::{Event as CrosstermEvent, EventStream};
 use futures::StreamExt;
-use signal_hook::consts::signal::*;
+use signal_hook::consts::{SIGHUP, SIGINT, SIGQUIT, SIGTERM};
 use signal_hook_tokio::Signals;
 use std::time::Duration;
 use tokio::{
@@ -48,7 +48,7 @@ impl Events {
         self.rx.recv().await
     }
 
-    /// Sends a tick event every tick_rate
+    /// Sends a tick event every `tick_rate`
     fn spawn_tick_task(&self) -> JoinHandle<()> {
         let tx = self.tx.clone();
         let mut interval = interval(TICK_RATE);
@@ -104,7 +104,7 @@ impl Events {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EventOutcome {
+pub enum Outcome {
     Consumed,
     NotConsumed,
 }

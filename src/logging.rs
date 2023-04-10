@@ -26,6 +26,7 @@ pub struct LogMessage {
 }
 
 impl LogCollector {
+    #[must_use]
     pub fn logs(&self) -> Arc<Mutex<Vec<LogMessage>>> {
         self.logs.clone()
     }
@@ -60,7 +61,7 @@ struct MessageVisitor {
 impl Visit for MessageVisitor {
     fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
         if field.name() == "message" {
-            self.message = format!("{:?}", value);
+            self.message = format!("{value:?}");
         }
     }
 }

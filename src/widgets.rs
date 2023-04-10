@@ -36,18 +36,18 @@ impl Widget for StatusBar {
 }
 
 #[derive(Debug, Default)]
-pub struct TitleBar {
-    title: &'static str,
+pub struct TitleBar<'a> {
+    title: &'a str,
 }
 
-impl TitleBar {
+impl<'a> TitleBar<'a> {
     pub const HEIGHT: u16 = 1;
-    pub const fn new(title: &'static str) -> Self {
+    pub const fn new(title: &'a str) -> Self {
         Self { title }
     }
 }
 
-impl Widget for TitleBar {
+impl<'a> Widget for TitleBar<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let style = Style::default().fg(Color::White).bg(Color::Blue);
         let bold = Style::default().add_modifier(Modifier::BOLD);

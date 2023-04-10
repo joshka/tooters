@@ -42,10 +42,10 @@ impl Drop for UI {
         // TODO find a way to do this without sleeping
         //std::thread::sleep(std::time::Duration::from_millis(3000));
         if let Err(e) = terminal::disable_raw_mode() {
-            error!("Error disabling raw mode: {}", e)
+            error!("Error disabling raw mode: {}", e);
         }
         if let Err(e) = crossterm::execute!(io::stdout(), LeaveAlternateScreen) {
-            error!("Error leaving alternate screen: {}", e)
+            error!("Error leaving alternate screen: {}", e);
         }
         if let Err(e) = self.terminal.show_cursor() {
             error!("Error showing cursor: {}", e);

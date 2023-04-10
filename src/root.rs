@@ -1,6 +1,6 @@
 use crate::{
-    authentication::AuthenticationComponent,
-    event::{Event, EventOutcome},
+    authentication,
+    event::{Event, Outcome},
     logging::{LogMessage, LogWidget},
     widgets::{StatusBar, TitleBar},
 };
@@ -15,17 +15,17 @@ use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use tracing::info;
 
-pub struct RootComponent {
+pub struct Component {
     _event_sender: Sender<Event>,
-    auth: AuthenticationComponent,
+    auth: authentication::Component,
     logs: Arc<Mutex<Vec<LogMessage>>>,
 }
 
-impl RootComponent {
-    pub fn new(_event_sender: Sender<Event>, logs: Arc<Mutex<Vec<LogMessage>>>) -> Self {
-        let auth = AuthenticationComponent::new(_event_sender.clone());
+impl Component {
+    pub fn new(event_sender: Sender<Event>, logs: Arc<Mutex<Vec<LogMessage>>>) -> Self {
+        let auth = authentication::Component::new(event_sender.clone());
         Self {
-            _event_sender,
+            _event_sender: event_sender,
             auth,
             logs,
         }
@@ -39,7 +39,7 @@ impl RootComponent {
             .context("Failed to start authentication component")
     }
 
-    pub async fn handle_event(&mut self, event: &Event) -> EventOutcome {
+    pub async fn handle_event(&mut self, event: &Event) -> Outcome {
         self.auth.handle_event(event).await
     }
 
@@ -54,7 +54,7 @@ impl RootComponent {
             ])
             .split(area)
         {
-            f.render_widget(TitleBar::new(self.auth.title()), top);
+            f.render_widget(TitleBar::new(&self.auth.title()), top);
             f.render_widget(StatusBar::new("Loading...".to_string()), bottom);
             f.render_widget(LogWidget::new(self.logs.clone()), logs);
             self.auth.draw(f, mid);
