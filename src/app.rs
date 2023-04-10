@@ -71,7 +71,7 @@ impl App {
                         debug!(?event, "Event handled by root component");
                         continue;
                     }
-                    if let Event::CrosstermEvent(Key(key)) = event {
+                    if let Event::Crossterm(Key(key)) = event {
                         if key.code == Char('q') || key.code == KeyCode::Esc {
                             debug!("Received quit key");
                             break;

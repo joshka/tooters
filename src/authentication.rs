@@ -64,7 +64,7 @@ impl Authentication {
     pub async fn handle_event(&mut self, event: &Event) -> Outcome {
         trace!(?event, "AuthenticationComponent::handle_event");
         match event {
-            Event::CrosstermEvent(CrosstermEvent::Key(key_event))
+            Event::Crossterm(CrosstermEvent::Key(key_event))
                 if key_event.code == KeyCode::Enter =>
             {
                 self.server_url_sender
@@ -74,11 +74,11 @@ impl Authentication {
                     .ok();
                 Outcome::Handled
             }
-            Event::CrosstermEvent(e) => {
+            Event::Crossterm(e) => {
                 self.server_url_input.handle_event(e);
                 Outcome::Handled
             }
-            _ => Outcome::Unhandled,
+            _ => Outcome::Ignored,
         }
     }
 

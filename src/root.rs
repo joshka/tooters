@@ -67,7 +67,7 @@ impl Root {
                 }
                 self.authentication.handle_event(event).await
             }
-            State::Home => self.home.handle_event(event).await,
+            State::Home => self.home.handle_event(event),
         }
     }
 
@@ -85,12 +85,12 @@ impl Root {
             match self.state {
                 State::Authentication => {
                     f.render_widget(TitleBar::new(&self.authentication.title()), top);
-                    f.render_widget(StatusBar::new("Loading...".to_string()), bottom);
+                    f.render_widget(StatusBar::new("Loading..."), bottom);
                     self.authentication.draw(f, mid);
                 }
                 State::Home => {
                     f.render_widget(TitleBar::new(self.home.title()), top);
-                    f.render_widget(StatusBar::new("Loading...".to_string()), bottom);
+                    f.render_widget(StatusBar::new(self.home.status()), bottom);
                     self.home.draw(f, mid);
                 }
             }

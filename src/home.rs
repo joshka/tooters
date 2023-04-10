@@ -1,6 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use anyhow::{anyhow, bail, Context};
+use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyModifiers};
 use mastodon_async::prelude::Status;
 use ratatui::{
     backend::Backend,
@@ -10,6 +11,7 @@ use ratatui::{
     widgets::{List, ListItem, ListState},
     Frame,
 };
+use time::format_description;
 use tokio::sync::mpsc::Sender;
 use tracing::info;
 
@@ -23,7 +25,8 @@ pub struct Home {
     authentication_data: Arc<RwLock<Option<authentication::State>>>,
     title: String,
     timeline: Option<Vec<Status>>,
-    pub selected: usize,
+    selected: usize,
+    status: String,
 }
 
 impl Home {
@@ -37,6 +40,7 @@ impl Home {
             title: String::new(),
             timeline: None,
             selected: 0,
+            status: String::new(),
         }
     }
 
@@ -63,12 +67,59 @@ impl Home {
         Ok(())
     }
 
-    pub async fn handle_event(&mut self, _event: &Event) -> Outcome {
-        Outcome::Unhandled
+    pub fn handle_event(&mut self, event: &Event) -> Outcome {
+        match event {
+            Event::Crossterm(event) => {
+                if let CrosstermEvent::Key(key) = *event {
+                    match (key.modifiers, key.code) {
+                        (KeyModifiers::NONE, KeyCode::Char('j')) => {
+                            self.scroll_down();
+                        }
+                        (KeyModifiers::NONE, KeyCode::Char('k')) => {
+                            self.scroll_up();
+                        }
+                        _ => return Outcome::Ignored,
+                    }
+                }
+                Outcome::Handled
+            }
+            _ => Outcome::Ignored,
+        }
+    }
+
+    fn scroll_down(&mut self) {
+        self.selected += 1;
+        self.update_status();
+    }
+
+    fn scroll_up(&mut self) {
+        self.selected = self.selected.saturating_sub(1);
+        self.update_status();
+    }
+
+    fn update_status(&mut self) {
+        if let Some(timeline) = &self.timeline {
+            if let Some(status) = timeline.get(self.selected) {
+                let date_format =
+                    format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]")
+                        .unwrap_or_default();
+                let date = status.created_at.format(&date_format).unwrap_or_default();
+                let url = status
+                    .reblog
+                    .as_ref()
+                    .map_or(status.url.clone(), |reblog| reblog.url.clone())
+                    .unwrap_or_default();
+                self.status = format!("({date}) {url}");
+            }
+        }
     }
 
     pub fn title(&self) -> &str {
         &self.title
+    }
+
+    pub fn status(&self) -> &str {
+        &self.status
     }
 
     pub fn draw(&self, frame: &mut Frame<impl Backend>, area: Rect) {
@@ -116,93 +167,3 @@ fn format_status(status: &Status, width: u16) -> Text {
     text.extend(Text::raw(""));
     text
 }
-
-// #[derive(Debug)]
-// pub struct HomeView {
-//     pub username: String,
-//     pub url: String,
-//     pub mastodon_client: Mastodon,
-//     pub timeline: Option<Vec<Status>>,
-//     pub selected: usize,
-//     pub status: String,
-// }
-
-// impl From<LoginDetails> for HomeView {
-//     fn from(login_details: LoginDetails) -> Self {
-//         Self {
-//             username: login_details.account.username,
-//             url: login_details.url,
-//             mastodon_client: login_details.mastodon,
-//             timeline: None,
-//             selected: 0,
-//             status: String::new(),
-//         }
-//     }
-// }
-
-// impl HomeView {
-//     pub async fn run(&mut self, sender: mpsc::Sender<Event>) -> anyhow::Result<()> {
-//         self.status = "Loading timeline...".to_string();
-//         let page = self
-//             .mastodon_client
-//             .get_home_timeline()
-//             .await
-//             .context("Failed to load timeline")?;
-//         self.status = "Timeline loaded".to_string();
-//         self.timeline = Some(page.initial_items);
-//         Ok(())
-//     }
-
-//     pub fn title(&self) -> String {
-//         format!(
-//             "{}@{}",
-//             self.username,
-//             self.url.trim_start_matches("https://")
-//         )
-//     }
-
-//     pub fn handle_event(&mut self, event: CrosstermEvent) {
-//         if let CrosstermEvent::Key(key) = event {
-//             match (key.modifiers, key.code) {
-//                 (KeyModifiers::NONE, KeyCode::Char('j')) => {
-//                     self.scroll_down();
-//                 }
-//                 (KeyModifiers::NONE, KeyCode::Char('k')) => {
-//                     self.scroll_up();
-//                 }
-//                 _ => {}
-//             }
-//         }
-//     }
-
-//     fn scroll_down(&mut self) {
-//         self.selected += 1;
-//         self.update_status()
-//     }
-
-//     fn scroll_up(&mut self) {
-//         self.selected = self.selected.saturating_sub(1);
-//         self.update_status()
-//     }
-
-//     pub fn status(&self) -> String {
-//         self.status.clone()
-//     }
-
-//     fn update_status(&mut self) {
-//         if let Some(timeline) = &self.timeline {
-//             if let Some(status) = timeline.get(self.selected) {
-//                 let date_format =
-//                     format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]")
-//                         .unwrap_or_default();
-//                 let date = status.created_at.format(&date_format).unwrap_or_default();
-//                 let url = status
-//                     .reblog
-//                     .as_ref()
-//                     .map_or(status.url.clone(), |reblog| reblog.url.clone())
-//                     .unwrap_or_default();
-//                 self.status = format!("({}) {}", date, url);
-//             }
-//         }
-//     }
-// }

@@ -17,7 +17,7 @@ const TICK_RATE: Duration = Duration::from_millis(250);
 pub enum Event {
     Tick,
     Quit,
-    CrosstermEvent(CrosstermEvent),
+    Crossterm(CrosstermEvent),
     AuthenticationSuccess,
 }
 
@@ -100,7 +100,7 @@ impl Events {
         tokio::spawn(async move {
             while let Some(Ok(event)) = events.next().await {
                 trace!(crossterm_event = ?event);
-                if tx.send(Event::CrosstermEvent(event)).await.is_err() {
+                if tx.send(Event::Crossterm(event)).await.is_err() {
                     error!("Failed to send event to channel");
                     break;
                 }
@@ -112,5 +112,5 @@ impl Events {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Outcome {
     Handled,
-    Unhandled,
+    Ignored,
 }

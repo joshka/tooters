@@ -6,18 +6,18 @@ use ratatui::{
     widgets::{Paragraph, Widget},
 };
 
-pub struct StatusBar {
-    text: String,
+pub struct StatusBar<'a> {
+    text: &'a str,
 }
 
-impl StatusBar {
+impl<'a> StatusBar<'a> {
     pub const HEIGHT: u16 = 1;
-    pub const fn new(text: String) -> Self {
+    pub const fn new(text: &'a str) -> Self {
         Self { text }
     }
 }
 
-impl Widget for StatusBar {
+impl<'a> Widget for StatusBar<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let style = Style::default().fg(Color::White).bg(Color::Blue);
         let bold = Style::default().add_modifier(Modifier::BOLD);
