@@ -33,7 +33,6 @@ pub struct Authentication {
     _app_event_sender: Sender<Event>,
     server_url_input: Input,
     server_url_sender: Option<Sender<String>>,
-    authenticated: bool,
     error: Arc<RwLock<Option<String>>>,
 }
 
@@ -43,7 +42,6 @@ impl Authentication {
             _app_event_sender: app_event_sender,
             server_url_input: Input::new("https://mastodon.social".to_string()),
             server_url_sender: None,
-            authenticated: false,
             error: Arc::new(RwLock::new(None)),
         }
     }
@@ -54,20 +52,22 @@ impl Authentication {
 
     pub async fn start(&mut self) -> Result<()> {
         info!("Starting authentication component");
-        match load_config().await {
-            Ok(_mastodon) => {
-                self.authenticated = true;
-                return Ok(());
-            }
-            Err(e) => {
-                info!("Error loading config: {}", e);
-            }
-        };
-        let (tx, rx) = tokio::sync::mpsc::channel(1);
-        self.server_url_sender = Some(tx);
+        // channel for for the handler to send the server url to the authentication task
+        // when the user presses enter
+        let (server_url_sender, server_url_receiver) = tokio::sync::mpsc::channel(1);
+        self.server_url_sender = Some(server_url_sender);
         let error = Arc::clone(&self.error);
         tokio::spawn(async move {
-            match run(rx).await {
+            match load_config().await {
+                Ok(_mastodon) => {
+                    return;
+                }
+                Err(e) => {
+                    info!("Error loading config: {}", e);
+                }
+            };
+
+            match run(server_url_receiver).await {
                 Ok(_) => info!("Authentication attempt finished"),
                 Err(e) => {
                     error!("Authentication attempt failed: {:?}", e);
