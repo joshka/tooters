@@ -29,7 +29,7 @@ use tracing::{debug, error, info, trace, warn};
 use tui_input::{backend::crossterm::EventHandler, Input};
 
 #[derive(Debug)]
-pub struct Component {
+pub struct Authentication {
     _app_event_sender: Sender<Event>,
     server_url_input: Input,
     server_url_sender: Option<Sender<String>>,
@@ -37,7 +37,7 @@ pub struct Component {
     error: Arc<RwLock<Option<String>>>,
 }
 
-impl Component {
+impl Authentication {
     pub fn new(app_event_sender: Sender<Event>) -> Self {
         Self {
             _app_event_sender: app_event_sender,
@@ -224,7 +224,7 @@ struct AppState {
 
 /// Starts a webserver on port 7007 to listen for an authentication callback.
 /// Returns the received authentication code when the callback is called.
-pub async fn get_code() -> Result<String> {
+async fn get_code() -> Result<String> {
     let port = 7007;
     let (code_sender, mut code_receiver) = channel::<String>(1);
     let (shutdown_sender, mut shutdown_reciever) = channel::<()>(1);
@@ -296,7 +296,7 @@ where
 }
 
 #[derive(Debug, Default)]
-pub struct Widget {
+struct Widget {
     error: Option<String>,
     server_url: String,
 }

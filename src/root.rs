@@ -1,5 +1,5 @@
 use crate::{
-    authentication,
+    authentication::Authentication,
     event::{Event, Outcome},
     logging::{LogMessage, LogWidget},
     widgets::{StatusBar, TitleBar},
@@ -17,7 +17,7 @@ use tracing::info;
 
 pub struct Root {
     _event_sender: Sender<Event>,
-    auth: authentication::Component,
+    authentication: Authentication,
     logs: Arc<Mutex<Vec<LogMessage>>>,
 }
 
@@ -26,17 +26,17 @@ pub struct Root {
 /// It is also responsible for handling events and drawing the UI.
 impl Root {
     pub fn new(event_sender: Sender<Event>, logs: Arc<Mutex<Vec<LogMessage>>>) -> Self {
-        let auth = authentication::Component::new(event_sender.clone());
+        let authentication = Authentication::new(event_sender.clone());
         Self {
             _event_sender: event_sender,
-            auth,
+            authentication,
             logs,
         }
     }
 
     pub async fn start(&mut self) -> anyhow::Result<()> {
         info!("Starting root component");
-        self.auth
+        self.authentication
             .start()
             .await
             .context("Authentication component failed to start")
@@ -45,7 +45,7 @@ impl Root {
     /// Handles an event.
     /// Returns an `Outcome` that indicates whether the event was handled or not.
     pub async fn handle_event(&mut self, event: &Event) -> Outcome {
-        self.auth.handle_event(event).await
+        self.authentication.handle_event(event).await
     }
 
     pub fn draw(&self, f: &mut Frame<impl Backend>, area: Rect) {
@@ -59,10 +59,10 @@ impl Root {
             ])
             .split(area)
         {
-            f.render_widget(TitleBar::new(&self.auth.title()), top);
+            f.render_widget(TitleBar::new(&self.authentication.title()), top);
             f.render_widget(StatusBar::new("Loading...".to_string()), bottom);
             f.render_widget(LogWidget::new(self.logs.clone()), logs);
-            self.auth.draw(f, mid);
+            self.authentication.draw(f, mid);
         }
     }
 }
