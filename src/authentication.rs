@@ -1,5 +1,4 @@
-use crate::event::Outcome;
-use crate::{config::Config, event::Event};
+use crate::{config::Config, event::Event, event::Outcome};
 use anyhow::{Context, Result};
 use axum::{
     extract::{Query, State},
@@ -12,21 +11,26 @@ use crossterm::event::{Event as CrosstermEvent, KeyCode};
 use mastodon_async::{
     registration::Registered, scopes::Scopes, Mastodon, Registration, StatusBuilder,
 };
-use ratatui::style::Color;
-use ratatui::text::Spans;
-use ratatui::{backend::Backend, layout::Rect, Frame};
 use ratatui::{
+    backend::Backend,
     buffer::Buffer,
+    layout::Rect,
     layout::{Constraint, Direction, Layout},
+    style::Color,
     style::{Modifier, Style},
     text::Span,
+    text::Spans,
     widgets::Paragraph,
+    Frame,
 };
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
 };
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::sync::{
+    mpsc::{channel, Receiver, Sender},
+    Mutex,
+};
 use tracing::{debug, error, info, trace, warn};
 use tui_input::{backend::crossterm::EventHandler, Input};
 
@@ -34,16 +38,20 @@ use tui_input::{backend::crossterm::EventHandler, Input};
 pub struct Authentication {
     _app_event_sender: Sender<Event>,
     server_url_input: Input,
-    server_url_sender: Option<Sender<String>>,
+    server_url_sender: Sender<String>,
+    server_url_receiver: Arc<Mutex<Receiver<String>>>,
     error: Arc<RwLock<Option<String>>>,
 }
 
 impl Authentication {
     pub fn new(app_event_sender: Sender<Event>) -> Self {
+        let (server_url_sender, server_url_receiver) = tokio::sync::mpsc::channel(1);
+        let server_url_receiver = Arc::new(Mutex::new(server_url_receiver));
         Self {
             _app_event_sender: app_event_sender,
             server_url_input: Input::new("https://mastodon.social".to_string()),
-            server_url_sender: None,
+            server_url_sender,
+            server_url_receiver,
             error: Arc::new(RwLock::new(None)),
         }
     }
@@ -52,40 +60,6 @@ impl Authentication {
         String::from("Authenticating at ") + self.server_url_input.value()
     }
 
-    pub async fn start(&mut self) -> Result<()> {
-        info!("Starting authentication component");
-        // channel for for the handler to send the server url to the authentication task
-        // when the user presses enter
-        let (server_url_sender, server_url_receiver) = tokio::sync::mpsc::channel(1);
-        self.server_url_sender = Some(server_url_sender);
-        let error = Arc::clone(&self.error);
-        tokio::spawn(async move {
-            match load_config().await {
-                Ok(_mastodon) => {
-                    return;
-                }
-                Err(e) => {
-                    info!("Error loading config: {}", e);
-                }
-            };
-
-            match run(server_url_receiver).await {
-                Ok(_) => info!("Authentication attempt finished"),
-                Err(e) => {
-                    error!("Authentication attempt failed: {:?}", e);
-                    match error.write() {
-                        Ok(mut error) => {
-                            *error = Some(e.to_string());
-                        }
-                        Err(e) => {
-                            error!("Error displaying error: {:?}", e);
-                        }
-                    }
-                }
-            }
-        });
-        Ok(())
-    }
     pub async fn handle_event(&mut self, event: &Event) -> Outcome {
         trace!(?event, "AuthenticationComponent::handle_event");
         match event {
@@ -93,12 +67,11 @@ impl Authentication {
             Event::CrosstermEvent(CrosstermEvent::Key(key_event))
                 if key_event.code == KeyCode::Enter =>
             {
-                if let Some(tx) = &self.server_url_sender {
-                    tx.clone()
-                        .send(self.server_url_input.value().to_string())
-                        .await
-                        .ok();
-                }
+                self.server_url_sender
+                    .clone()
+                    .send(self.server_url_input.value().to_string())
+                    .await
+                    .ok();
             }
             Event::CrosstermEvent(e) => {
                 self.server_url_input.handle_event(e);
@@ -118,20 +91,62 @@ impl Authentication {
         let widget = Widget::new(error, self.server_url_input.value().to_string());
         widget.draw(f, area);
     }
+
+    pub async fn start(&mut self) -> Result<()> {
+        info!("Starting authentication component");
+        let error = Arc::clone(&self.error);
+
+        // channel for for the handler to send the server url to the authentication task
+        // when the user presses enter
+
+        let server_url_receiver = self.server_url_receiver.clone();
+        tokio::spawn(async move {
+            loop {
+                let server_url_receiver = server_url_receiver.clone();
+                let mastodon = load_config().await;
+                let mastodon = match mastodon {
+                    Ok(_) => mastodon,
+                    Err(e) => {
+                        info!("No config file found. {}", e);
+                        try_authenticate(server_url_receiver).await
+                    }
+                };
+
+                match mastodon {
+                    Ok(_mastodon) => {
+                        info!("Authentication successful");
+                        break;
+                    }
+                    Err(e) => {
+                        error!("Authentication attempt failed: {:?}", e);
+                        match error.write() {
+                            Ok(mut error) => {
+                                *error = Some(e.to_string());
+                            }
+                            Err(e) => {
+                                error!("Error displaying error: {:?}", e);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        Ok(())
+    }
 }
 
 async fn load_config() -> Result<Mastodon> {
     let config = Config::load()?;
     info!("Loaded config");
     let mastodon = Mastodon::from(config.data);
-    let account = mastodon.verify_credentials().await?;
-    info!("Logged in as {}", account.username);
+    // let account = mastodon.verify_credentials().await?;
+    // info!("Logged in as {}", account.username);
     Ok(mastodon)
 }
 
-async fn run(rx: Receiver<String>) -> Result<()> {
+async fn try_authenticate(server_url_receiver: Arc<Mutex<Receiver<String>>>) -> Result<Mastodon> {
     info!("Running authentication flow");
-    let mastodon = authorize(rx)
+    let mastodon = authorize(server_url_receiver)
         .await
         .context("Error authorizing with mastodon")?;
     let config = Config::from(mastodon.data.clone());
@@ -139,13 +154,19 @@ async fn run(rx: Receiver<String>) -> Result<()> {
         Ok(path) => info!("Saved config to {path}"),
         Err(e) => warn!("Error saving config: {}", e),
     }
-    let account = mastodon.verify_credentials().await?;
+    Ok(mastodon)
+}
+
+async fn _verify_credentials(mastodon: &Mastodon) -> Result<()> {
+    let account = mastodon
+        .verify_credentials()
+        // .context("Verification of credentials failed")
+        .await?;
     info!("Logged in as {}", account.username);
-    send_test_toot(mastodon).await?;
     Ok(())
 }
 
-async fn send_test_toot(mastodon: Mastodon) -> Result<(), anyhow::Error> {
+async fn _send_test_toot(mastodon: Mastodon) -> Result<(), anyhow::Error> {
     let status = StatusBuilder::new()
         .status("Hello from tooters!")
         .build()
@@ -158,9 +179,9 @@ async fn send_test_toot(mastodon: Mastodon) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-async fn authorize(rx: Receiver<String>) -> Result<Mastodon> {
+async fn authorize(server_url_receiver: Arc<Mutex<Receiver<String>>>) -> Result<Mastodon> {
     info!("Waiting for server url...");
-    let server_url = get_server_url(rx).await?;
+    let server_url = get_server_url(server_url_receiver).await?;
     info!("Registering Tooters at: {}", server_url);
     let registered = get_registered(server_url).await?;
     info!("Tooters client registered");
@@ -172,8 +193,11 @@ async fn authorize(rx: Receiver<String>) -> Result<Mastodon> {
 }
 
 /// Get the server url from the user by asking them to enter it in the terminal
-async fn get_server_url(mut rx: Receiver<String>) -> Result<String> {
-    rx.recv()
+async fn get_server_url(server_url_receiver: Arc<Mutex<Receiver<String>>>) -> Result<String> {
+    let mutex = server_url_receiver.clone();
+    let mut server_url_receiver = mutex.lock().await;
+    server_url_receiver
+        .recv()
         .await
         .ok_or_else(|| anyhow::Error::msg("Error getting server url"))
 }
@@ -315,25 +339,19 @@ impl Widget {
 
 impl ratatui::widgets::Widget for Widget {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        if let [welcome, server_url_area, message_area] = *Layout::default()
+        let error_height = if self.error.is_some() { 2 } else { 0 };
+        if let [welcome_area, error_area, server_url_area] = *Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(2),
+                Constraint::Length(error_height),
                 Constraint::Length(2),
-                Constraint::Min(1),
             ])
             .split(area)
             .as_ref()
         {
             Paragraph::new("Welcome to tooters. Sign in to your mastodon server")
-                .render(welcome, buf);
-
-            Paragraph::new(Spans::from(vec![
-                Span::styled("Server URL:", Style::default().add_modifier(Modifier::BOLD)),
-                Span::raw(" "),
-                Span::raw(self.server_url),
-            ]))
-            .render(server_url_area, buf);
+                .render(welcome_area, buf);
 
             if let Some(error) = self.error {
                 Paragraph::new(Spans::from(vec![
@@ -344,8 +362,15 @@ impl ratatui::widgets::Widget for Widget {
                     Span::raw(" "),
                     Span::raw(error),
                 ]))
-                .render(message_area, buf);
+                .render(error_area, buf);
             }
+
+            Paragraph::new(Spans::from(vec![
+                Span::styled("Server URL:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(" "),
+                Span::raw(self.server_url),
+            ]))
+            .render(server_url_area, buf);
         }
     }
 }
