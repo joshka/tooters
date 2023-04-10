@@ -15,13 +15,16 @@ use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use tracing::info;
 
-pub struct Component {
+pub struct Root {
     _event_sender: Sender<Event>,
     auth: authentication::Component,
     logs: Arc<Mutex<Vec<LogMessage>>>,
 }
 
-impl Component {
+/// The root component is the top-level component of the application.
+/// It is responsible for starting and stopping all other components.
+/// It is also responsible for handling events and drawing the UI.
+impl Root {
     pub fn new(event_sender: Sender<Event>, logs: Arc<Mutex<Vec<LogMessage>>>) -> Self {
         let auth = authentication::Component::new(event_sender.clone());
         Self {
@@ -36,9 +39,11 @@ impl Component {
         self.auth
             .start()
             .await
-            .context("Failed to start authentication component")
+            .context("Authentication component failed to start")
     }
 
+    /// Handles an event.
+    /// Returns an `Outcome` that indicates whether the event was handled or not.
     pub async fn handle_event(&mut self, event: &Event) -> Outcome {
         self.auth.handle_event(event).await
     }

@@ -1,7 +1,7 @@
 use crate::{
     event::{Event, Events, Outcome},
     logging::LogMessage,
-    root,
+    root::Root,
     ui::UI,
 };
 use anyhow::{Context, Result};
@@ -28,13 +28,13 @@ pub async fn run(logs: Arc<Mutex<Vec<LogMessage>>>) -> Result<()> {
 struct App {
     events: Events,
     ui: UI,
-    root: root::Component,
+    root: Root,
 }
 
 impl App {
     pub fn new(logs: Arc<Mutex<Vec<LogMessage>>>) -> Result<Self> {
         let events = Events::new();
-        let root = root::Component::new(events.tx.clone(), logs);
+        let root = Root::new(events.tx.clone(), logs);
         let ui = UI::new().context("Initializing UI failed")?;
         Ok(Self { events, ui, root })
     }
