@@ -44,6 +44,11 @@ impl Events {
         Ok(())
     }
 
+    /// Returns the next event
+    /// This function is async and will block until an event is received
+    /// or the channel is closed.
+    /// If the channel is closed, `None` is returned.
+    /// If the channel is not closed, `Some(Event)` is returned.
     pub async fn next(&mut self) -> Option<Event> {
         self.rx.recv().await
     }
