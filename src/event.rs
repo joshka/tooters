@@ -18,6 +18,7 @@ pub enum Event {
     Tick,
     Quit,
     CrosstermEvent(CrosstermEvent),
+    AuthenticationSuccess,
 }
 
 #[derive(Debug)]
@@ -110,6 +111,6 @@ impl Events {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Outcome {
-    Consumed,
-    NotConsumed,
+    Handled,
+    Unhandled,
 }

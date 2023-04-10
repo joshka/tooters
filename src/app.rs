@@ -67,8 +67,8 @@ impl App {
                     self.root.handle_event(&Event::Tick).await;
                 }
                 Some(event) => {
-                    if self.root.handle_event(&event).await == Outcome::Consumed {
-                        debug!(?event, "Event consumed by root component");
+                    if self.root.handle_event(&event).await == Outcome::Handled {
+                        debug!(?event, "Event handled by root component");
                         continue;
                     }
                     if let Event::CrosstermEvent(Key(key)) = event {
@@ -78,7 +78,7 @@ impl App {
                         }
                     }
                 }
-                _ => {
+                None => {
                     error!("Event channel closed. Exiting as we won't receive any more events.");
                     break;
                 }

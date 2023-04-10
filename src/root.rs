@@ -1,6 +1,7 @@
 use crate::{
     authentication::Authentication,
     event::{Event, Outcome},
+    home::Home,
     logging::{LogMessage, LogWidget},
     widgets::{StatusBar, TitleBar},
 };
@@ -11,14 +12,21 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     Frame,
 };
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::Sender;
 use tracing::info;
+
+enum State {
+    Authentication,
+    Home,
+}
 
 pub struct Root {
     _event_sender: Sender<Event>,
     authentication: Authentication,
+    home: Home,
     logs: Arc<Mutex<Vec<LogMessage>>>,
+    state: State,
 }
 
 /// The root component is the top-level component of the application.
@@ -26,11 +34,16 @@ pub struct Root {
 /// It is also responsible for handling events and drawing the UI.
 impl Root {
     pub fn new(event_sender: Sender<Event>, logs: Arc<Mutex<Vec<LogMessage>>>) -> Self {
-        let authentication = Authentication::new(event_sender.clone());
+        let authentication_data = Arc::new(RwLock::new(None));
+        let authentication =
+            Authentication::new(event_sender.clone(), Arc::clone(&authentication_data));
+        let home = Home::new(event_sender.clone(), Arc::clone(&authentication_data));
         Self {
             _event_sender: event_sender,
             authentication,
+            home,
             logs,
+            state: State::Authentication,
         }
     }
 
@@ -45,7 +58,17 @@ impl Root {
     /// Handles an event.
     /// Returns an `Outcome` that indicates whether the event was handled or not.
     pub async fn handle_event(&mut self, event: &Event) -> Outcome {
-        self.authentication.handle_event(event).await
+        match self.state {
+            State::Authentication => {
+                if event == &Event::AuthenticationSuccess {
+                    self.state = State::Home;
+                    self.home.start().await.ok();
+                    return Outcome::Handled;
+                }
+                self.authentication.handle_event(event).await
+            }
+            State::Home => self.home.handle_event(event).await,
+        }
     }
 
     pub fn draw(&self, f: &mut Frame<impl Backend>, area: Rect) {
@@ -59,10 +82,19 @@ impl Root {
             ])
             .split(area)
         {
-            f.render_widget(TitleBar::new(&self.authentication.title()), top);
-            f.render_widget(StatusBar::new("Loading...".to_string()), bottom);
+            match self.state {
+                State::Authentication => {
+                    f.render_widget(TitleBar::new(&self.authentication.title()), top);
+                    f.render_widget(StatusBar::new("Loading...".to_string()), bottom);
+                    self.authentication.draw(f, mid);
+                }
+                State::Home => {
+                    f.render_widget(TitleBar::new(self.home.title()), top);
+                    f.render_widget(StatusBar::new("Loading...".to_string()), bottom);
+                    self.home.draw(f, mid);
+                }
+            }
             f.render_widget(LogWidget::new(self.logs.clone()), logs);
-            self.authentication.draw(f, mid);
         }
     }
 }
