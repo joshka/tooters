@@ -12,13 +12,15 @@ use crossterm::event::{Event as CrosstermEvent, KeyCode};
 use mastodon_async::{
     registration::Registered, scopes::Scopes, Mastodon, Registration, StatusBuilder,
 };
+use ratatui::style::Color;
+use ratatui::text::Spans;
 use ratatui::{backend::Backend, layout::Rect, Frame};
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout},
     style::{Modifier, Style},
     text::Span,
-    widgets::{Block, Paragraph},
+    widgets::Paragraph,
 };
 use std::{
     collections::HashMap,
@@ -313,30 +315,37 @@ impl Widget {
 
 impl ratatui::widgets::Widget for Widget {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let message_height = 10;
-        let server_url_height = 3;
-
-        if let [message_area, server_url_area] = *Layout::default()
+        if let [welcome, server_url_area, message_area] = *Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(message_height),
-                Constraint::Length(server_url_height),
+                Constraint::Length(2),
+                Constraint::Length(2),
+                Constraint::Min(1),
             ])
             .split(area)
             .as_ref()
         {
-            field(
-                "Welcome to tooters. Sign in to your mastodon server",
-                self.error.unwrap_or_default().as_str(),
-            )
-            .render(message_area, buf);
+            Paragraph::new("Welcome to tooters. Sign in to your mastodon server")
+                .render(welcome, buf);
 
-            field("Server URL:", &self.server_url).render(server_url_area, buf);
+            Paragraph::new(Spans::from(vec![
+                Span::styled("Server URL:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::raw(" "),
+                Span::raw(self.server_url),
+            ]))
+            .render(server_url_area, buf);
+
+            if let Some(error) = self.error {
+                Paragraph::new(Spans::from(vec![
+                    Span::styled(
+                        "Error:",
+                        Style::default().add_modifier(Modifier::BOLD).fg(Color::Red),
+                    ),
+                    Span::raw(" "),
+                    Span::raw(error),
+                ]))
+                .render(message_area, buf);
+            }
         }
     }
-}
-
-fn field<'a>(label: &'a str, value: &'a str) -> Paragraph<'a> {
-    let title = Span::styled(label, Style::default().add_modifier(Modifier::BOLD));
-    Paragraph::new(value).block(Block::default().title(title))
 }
