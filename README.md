@@ -4,7 +4,7 @@ Tooters is a Rust-based Terminal User Interface (TUI) Mastodon app that allows y
 
 Visit our website at [toote.rs](https://toote.rs) (TODO) for more information and updates.
 
-[![asciicast](https://asciinema.org/a/572606.svg)](https://asciinema.org/a/572606)
+[![asciicast](https://asciinema.org/a/576573.svg)](https://asciinema.org/a/576573)
 
 ## Known issues
 
