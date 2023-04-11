@@ -8,8 +8,7 @@ Visit our website at [toote.rs](https://toote.rs) (TODO) for more information an
 
 ## Known issues
 
-- does not handle login correctly (BYO mastodon-data.toml)
-- does not load second page of toots
+- does not load second page of toots (yet)
 
 ## Features
 
@@ -47,7 +46,7 @@ You will be prompted to enter your Mastodon instance URL and login credentials. 
 - [ ] `r`: Reply to the selected toot
 - [ ] `b`: Boost the selected toot
 - [ ] `f`: Favourite the selected toot
-- [ ] `q`: Quit Tooters
+- [x] `q`: Quit Tooters
 
 ## Contributing
 

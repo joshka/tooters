@@ -2,6 +2,47 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.4] - 2023-04-11
+
+### Bug Fixes
+
+- Cleanup clippy issues with futures
+
+### Documentation
+
+- Update changelog
+- Add asciinema demo to README
+- Update changelog and README for 0.0.4
+
+### Features
+
+- Add async authentication flow
+- Add log widget
+- Add color to logs
+- Add auth server and refactor UI
+- Cleanup error log messages in app.rs
+- Loading from config happens off main thread
+- Cleanup auth widget
+- Run authentication loop until successful
+- Go to home screen on authentication success
+- Implement timeline scrolling
+- Disable showing logs by default
+
+### Miscellaneous Tasks
+
+- Cleanup pedantic clippy errors
+
+### Refactor
+
+- Move to a component-based architecture
+- Move load/save to Config
+- Extract an authentication widget
+- Structure vertically
+- Flatten module structure
+- Pull out logging setup in main.rs
+- Rename root::Component to root::Root
+- Rename authentication::Component to Authentication
+
 ## [0.0.3] - 2023-03-31
 
 ### Documentation
