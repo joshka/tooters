@@ -34,7 +34,7 @@ pub struct Authentication {
     authentication_data: Arc<RwLock<Option<State>>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct State {
     pub mastodon: Mastodon,
     pub config: Config,

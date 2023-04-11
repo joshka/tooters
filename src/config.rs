@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use mastodon_async::{data::Data, helpers::toml};
 use tracing::info;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Config {
     pub data: Data,
 }
