@@ -23,10 +23,11 @@ enum State {
 
 pub struct Root {
     _event_sender: Sender<Event>,
+    state: State,
     authentication: Authentication,
     home: Home,
     logs: Arc<Mutex<Vec<LogMessage>>>,
-    state: State,
+    show_logs: bool,
 }
 
 /// The root component is the top-level component of the application.
@@ -38,12 +39,15 @@ impl Root {
         let authentication =
             Authentication::new(event_sender.clone(), Arc::clone(&authentication_data));
         let home = Home::new(event_sender.clone(), Arc::clone(&authentication_data));
+        // show logs if we set TOOTERS_SHOW_LOGS to anything
+        let show_logs = std::env::var("TOOTERS_SHOW_LOGS").is_ok();
         Self {
             _event_sender: event_sender,
+            state: State::Authentication,
             authentication,
             home,
             logs,
-            state: State::Authentication,
+            show_logs,
         }
     }
 
@@ -77,7 +81,7 @@ impl Root {
             .constraints([
                 Constraint::Length(TitleBar::HEIGHT),
                 Constraint::Min(0),
-                Constraint::Length(20), // logs
+                Constraint::Length(if self.show_logs { 7 } else { 0 }), // logs
                 Constraint::Length(StatusBar::HEIGHT),
             ])
             .split(area)
@@ -94,7 +98,9 @@ impl Root {
                     self.home.draw(f, mid);
                 }
             }
-            f.render_widget(LogWidget::new(self.logs.clone()), logs);
+            if self.show_logs {
+                f.render_widget(LogWidget::new(self.logs.clone()), logs);
+            }
         }
     }
 }
