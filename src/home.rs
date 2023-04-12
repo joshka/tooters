@@ -25,12 +25,12 @@ pub struct Home {
     authentication_data: Arc<RwLock<Option<authentication::State>>>,
     title: String,
     timeline: Option<Vec<Status>>,
-    selected: usize,
     status: String,
+    list_state: Arc<RwLock<ListState>>,
 }
 
 impl Home {
-    pub const fn new(
+    pub fn new(
         event_sender: Sender<Event>,
         authentication_data: Arc<RwLock<Option<authentication::State>>>,
     ) -> Self {
@@ -39,8 +39,8 @@ impl Home {
             authentication_data,
             title: String::new(),
             timeline: None,
-            selected: 0,
             status: String::new(),
+            list_state: Arc::new(RwLock::new(ListState::default())),
         }
     }
 
@@ -89,18 +89,27 @@ impl Home {
     }
 
     fn scroll_down(&mut self) {
-        self.selected += 1;
-        self.update_status();
+        // self.selected += 1;
+        let list_state = Arc::clone(&self.list_state);
+        let mut list_state = list_state.write().unwrap();
+        let index = list_state.selected().map_or(0, |s| s + 1);
+        list_state.select(Some(index));
+        self.update_status(index);
     }
 
     fn scroll_up(&mut self) {
-        self.selected = self.selected.saturating_sub(1);
-        self.update_status();
+        // self.selected = self.selected.saturating_sub(1);
+        let list_state = Arc::clone(&self.list_state);
+        let mut list_state = list_state.write().unwrap();
+        let index = list_state.selected().map_or(0, |s| s.saturating_sub(1));
+        list_state.select(Some(index));
+        self.update_status(index);
     }
 
-    fn update_status(&mut self) {
+    fn update_status(&mut self, selected: usize) {
         if let Some(timeline) = &self.timeline {
-            if let Some(status) = timeline.get(self.selected) {
+            // let selected = Arc::clone(&self.list_state).read().map_or(0, |s| s.selected().unwrap_or_default());
+            if let Some(status) = timeline.get(selected) {
                 let date_format =
                     format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]")
                         .unwrap_or_default();
@@ -140,8 +149,10 @@ impl Home {
         // this looks great on a dark theme, but not so much on a light one
         let style = Style::default().bg(Color::Rgb(16, 32, 64));
         let list = List::new(items).highlight_style(style);
-        let mut state = ListState::default();
-        state.select(Some(self.selected));
+        // let mut state = ListState::default();
+        // state.select(Some(self.selected));
+        let list_state = Arc::clone(&self.list_state);
+        let mut state = list_state.write().unwrap();
         frame.render_stateful_widget(list, area, &mut state);
     }
 }
