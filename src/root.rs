@@ -40,8 +40,8 @@ impl Root {
         let authentication =
             Authentication::new(event_sender.clone(), Arc::clone(&authentication_data));
         let home = Home::new(event_sender.clone(), Arc::clone(&authentication_data));
-        // show logs if we set TOOTERS_SHOW_LOGS to anything
-        let show_logs = std::env::var("TOOTERS_SHOW_LOGS").is_ok();
+        // show logs if we set TOOT_RS_SHOW_LOGS to anything
+        let show_logs = std::env::var("TOOT_RS_SHOW_LOGS").is_ok();
         Self {
             _event_sender: event_sender,
             state: State::Authentication,

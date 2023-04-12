@@ -157,9 +157,9 @@ async fn load_config_or_authorize(
 async fn authorize(server_url_receiver: Arc<Mutex<Receiver<String>>>) -> Result<Mastodon> {
     info!("Waiting for server url...");
     let server_url = get_server_url(server_url_receiver).await?;
-    info!("Registering Tooters at: {}", server_url);
+    info!("Registering Toot-rs at: {}", server_url);
     let registered = register_client_app(server_url).await?;
-    info!("Tooters client registered");
+    info!("Toot-rs client registered");
     let auth_code = get_auth_code(&registered).await?;
     debug!("Auth code: {}", auth_code);
     let mastodon = complete_registration(&registered, auth_code).await?;
@@ -180,13 +180,13 @@ async fn get_server_url(server_url_receiver: Arc<Mutex<Receiver<String>>>) -> Re
 /// Register the client with the server
 async fn register_client_app(server_url: String) -> Result<Registered> {
     Registration::new(&server_url)
-        .client_name("Tooters")
-        .website("https://github.com/joshka/tooters")
+        .client_name("Toot-rs")
+        .website("https://github.com/toot-rs/toot-rs")
         .redirect_uris("http://localhost:7007/callback")
         .scopes(Scopes::all())
         .build()
         .await
-        .context(format!("unable to register tooters with {server_url}"))
+        .context(format!("unable to register toot-rs with {server_url}"))
 }
 
 /// Launch a browser to the authorization url and get the auth code from the user
@@ -339,7 +339,7 @@ impl ratatui::widgets::Widget for Widget {
             .split(area)
             .as_ref()
         {
-            Paragraph::new("Welcome to tooters. Sign in to your mastodon server")
+            Paragraph::new("Welcome to toot-rs. Sign in to your mastodon server")
                 .render(welcome_area, buf);
 
             if let Some(error) = self.error {

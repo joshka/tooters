@@ -47,10 +47,7 @@ impl Home {
     pub async fn start(&mut self) -> anyhow::Result<()> {
         info!("Starting home component");
         let auth = Arc::clone(&self.authentication_data);
-        let auth = auth
-            .read()
-            .map_err(|e| anyhow!("failed to read authentication data. {e}"))?
-            .clone(); // easy way to avoid holding the lock over the await below
+        let auth = auth.read().clone(); // easy way to avoid holding the lock over the await below
         if let Some(auth) = auth {
             let username = auth.account.username.clone();
             let server = auth.config.data.base.trim_start_matches("https://");

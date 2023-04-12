@@ -1,7 +1,7 @@
 use anyhow::Context;
 use parking_lot::Mutex;
 use std::{panic, sync::Arc};
-use tooters::{
+use toot_rs::{
     app,
     logging::{LogCollector, LogMessage},
 };
@@ -22,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
 /// Sets up logging to a file and a collector for the logs that can be used to
 /// display them in the UI.
 fn setup_logging() -> anyhow::Result<Arc<Mutex<Vec<LogMessage>>>> {
-    let file_appender = tracing_appender::rolling::hourly("./", "tooters.log");
+    let file_appender = tracing_appender::rolling::hourly("./", "toot-rs.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
     let log_collector = LogCollector::default();

@@ -1,4 +1,4 @@
 /target
 mastodon-data.toml
-tooters.log.*
+toot-rs.log.*
 mastodon-data.toml.backup
