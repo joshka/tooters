@@ -1,21 +1,17 @@
 use anyhow::Context;
 use parking_lot::Mutex;
 use std::{panic, sync::Arc};
-use toot_rs::{
-    app,
-    logging::{LogCollector, LogMessage},
-};
-use tracing::{error, info, metadata::LevelFilter};
+use tooters::logging::{LogCollector, LogMessage};
+use tracing::{error, metadata::LevelFilter};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter, Registry};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let logs = setup_logging()?;
+    let _logs = setup_logging()?;
     panic::set_hook(Box::new(|info| {
         error!("Panic: {:?}", info);
     }));
-    app::run(logs).await?;
-    info!("Exiting");
+    println!("Renamed to toot-rs. Please install that instead `cargo install toot-rs`.");
     Ok(())
 }
 

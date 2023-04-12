@@ -1,4 +1,8 @@
-# Toot-rs: A Rust TUI-based Mastodon App
+# TOOTERS RENAMED TO TOOT-RS as of 0.0.5
+
+See https://crates.io/crates/toot-rs
+
+There will be no further releases of tooters.
 
 Toot-rs (formerly known as tooters) is a Rust-based Terminal User Interface (TUI) Mastodon app that allows you to view multiple toots on the screen at once. The project was created as a means to learn Rust and scratch a personal itch - the desire to see multiple toots on the screen at once. See the awesome python based [toot](https://github.com/ihabunek/toot), for something more complete.
 
