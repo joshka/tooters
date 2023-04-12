@@ -332,14 +332,14 @@ impl ratatui::widgets::Widget for Widget {
         if let [welcome_area, error_area, server_url_area] = *Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(2),
+                Constraint::Length(3),
                 Constraint::Length(error_height),
                 Constraint::Length(2),
             ])
             .split(area)
             .as_ref()
         {
-            Paragraph::new("Welcome to toot-rs. Sign in to your mastodon server")
+            Paragraph::new("Welcome to toot-rs. Sign in to your mastodon server.\nYou will be redirected to your browser to complete the authentication process.")
                 .render(welcome_area, buf);
 
             if let Some(error) = self.error {
