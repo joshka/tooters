@@ -67,12 +67,18 @@ impl App {
                     self.root.handle_event(&Event::Tick).await;
                 }
                 Some(event) => {
+                    if let Event::Crossterm(Key(key)) = event {
+                        if key.code == KeyCode::Esc {
+                            debug!("Received quit key");
+                            break;
+                        }
+                    }
                     if self.root.handle_event(&event).await == Outcome::Handled {
                         debug!(?event, "Event handled by root component");
                         continue;
                     }
                     if let Event::Crossterm(Key(key)) = event {
-                        if key.code == Char('q') || key.code == KeyCode::Esc {
+                        if key.code == Char('q') {
                             debug!("Received quit key");
                             break;
                         }
