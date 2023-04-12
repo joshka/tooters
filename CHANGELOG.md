@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.0.5] - 2023-04-12
+
+### Bug Fixes
+
+- Save list_state to fix scrolling
+- Always quit when Escape is pressed
+
+### Documentation
+
+- Update the asciinema to 0.0.4
+- Add TODO.md
+
+### Miscellaneous Tasks
+
+- Cleanup clippy errors
+- Rename tooters to toot-rs
+- Add better welcome message
+
 ## [0.0.4] - 2023-04-11
 
 ### Bug Fixes
@@ -31,6 +49,8 @@ All notable changes to this project will be documented in this file.
 ### Miscellaneous Tasks
 
 - Cleanup pedantic clippy errors
+- Update Cargo.lock
+- Release tooters version 0.0.4
 
 ### Refactor
 

@@ -4,7 +4,7 @@ Toot-rs (formerly known as tooters) is a Rust-based Terminal User Interface (TUI
 
 Visit our website at [toot.rs](https://toot.rs) for more information and updates.
 
-[![asciicast](https://asciinema.org/a/576573.svg)](https://asciinema.org/a/576573)
+[![asciicast](https://asciinema.org/a/576920.svg)](https://asciinema.org/a/576920)
 
 ## Known issues
 
