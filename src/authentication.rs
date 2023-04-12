@@ -1,9 +1,10 @@
 use crate::{config::Config, event::Event, event::Outcome};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use crossterm::event::{Event as CrosstermEvent, KeyCode};
 use mastodon_async::{
     prelude::Account, registration::Registered, scopes::Scopes, Mastodon, Registration,
 };
+use parking_lot::RwLock;
 use ratatui::{
     backend::Backend,
     buffer::Buffer,
@@ -16,7 +17,7 @@ use ratatui::{
     widgets::Paragraph,
     Frame,
 };
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use tokio::sync::{
     mpsc::{self, Receiver, Sender},
     Mutex,
@@ -83,13 +84,7 @@ impl Authentication {
     }
 
     pub fn draw(&self, f: &mut Frame<impl Backend>, area: Rect) {
-        let error = match self.error.read() {
-            Ok(error) => error.clone(),
-            Err(e) => {
-                error!("Error locking error for read: {:?}", e);
-                Some("Error locking error for read".to_string())
-            }
-        };
+        let error = self.error.read().clone();
         let widget = Widget::new(error, self.server_url_input.value().to_string());
         widget.draw(f, area);
     }
@@ -121,12 +116,7 @@ impl Authentication {
 }
 
 fn display_error(e: &anyhow::Error, error: &Arc<RwLock<Option<String>>>) {
-    match error.write() {
-        Ok(mut error) => {
-            *error = Some(e.to_string());
-        }
-        Err(e) => error!("Error locking error message: {:?}", e),
-    }
+    *error.write() = Some(e.to_string());
 }
 
 async fn load_config_or_authorize(
@@ -155,9 +145,7 @@ async fn load_config_or_authorize(
         .await
         .context("failed to verify credentials")?;
     info!("Verified credentials. Logged in as {}", account.username);
-    let mut authentication_data = authentication_data
-        .write()
-        .map_err(|e| anyhow!("unable to lock authentication data: {:?}", e))?;
+    let mut authentication_data = authentication_data.write();
     *authentication_data = Some(State {
         mastodon: mastodon.clone(),
         config,

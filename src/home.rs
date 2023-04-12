@@ -1,8 +1,7 @@
-use std::sync::{Arc, RwLock};
-
-use anyhow::{anyhow, bail, Context};
+use anyhow::{bail, Context};
 use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyModifiers};
 use mastodon_async::prelude::Status;
+use parking_lot::RwLock;
 use ratatui::{
     backend::Backend,
     layout::Rect,
@@ -11,6 +10,7 @@ use ratatui::{
     widgets::{List, ListItem, ListState},
     Frame,
 };
+use std::sync::Arc;
 use time::format_description;
 use tokio::sync::mpsc::Sender;
 use tracing::info;
@@ -91,7 +91,7 @@ impl Home {
     fn scroll_down(&mut self) {
         // self.selected += 1;
         let list_state = Arc::clone(&self.list_state);
-        let mut list_state = list_state.write().unwrap();
+        let mut list_state = list_state.write();
         let index = list_state.selected().map_or(0, |s| s + 1);
         list_state.select(Some(index));
         self.update_status(index);
@@ -100,7 +100,7 @@ impl Home {
     fn scroll_up(&mut self) {
         // self.selected = self.selected.saturating_sub(1);
         let list_state = Arc::clone(&self.list_state);
-        let mut list_state = list_state.write().unwrap();
+        let mut list_state = list_state.write();
         let index = list_state.selected().map_or(0, |s| s.saturating_sub(1));
         list_state.select(Some(index));
         self.update_status(index);
@@ -152,7 +152,7 @@ impl Home {
         // let mut state = ListState::default();
         // state.select(Some(self.selected));
         let list_state = Arc::clone(&self.list_state);
-        let mut state = list_state.write().unwrap();
+        let mut state = list_state.write();
         frame.render_stateful_widget(list, area, &mut state);
     }
 }

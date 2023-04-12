@@ -7,12 +7,13 @@ use crate::{
 };
 use anyhow::Context;
 use parking_lot::Mutex;
+use parking_lot::RwLock;
 use ratatui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
     Frame,
 };
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use tracing::info;
 
