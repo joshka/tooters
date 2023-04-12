@@ -1,6 +1,6 @@
 [package]
 name = "toot-rs"
-version = "0.0.4"
+version = "0.0.5"
 edition = "2021"
 license-file = "LICENSE.txt"
 description = "A Rust TUI Mastodon App"
