@@ -14,7 +14,6 @@ categories = ["command-line-utilities"]
 anyhow = "1.0"
 axum = { version = "0.6", features = ["tokio"] }
 crossterm = { version = "0.26", features = ["event-stream"] }
-femme = "2.2"
 futures = "0.3"
 html2text = "0.5"
 tui-input = "0.7"
@@ -33,10 +32,11 @@ tokio = { version = "1", features = [
   "time",
   "tracing",
 ] }
-tracing = "0.1"
+tracing = { version = "0.1", features = ["valuable"] }
 tracing-appender = "0.2"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 tracing-log = "0.1"
+valuable = "0.1"
 webbrowser = "0.8"
 xdg = "2.4"
 
@@ -64,3 +64,6 @@ targets = [
   "x86_64-pc-windows-msvc",
   "aarch64-apple-darwin",
 ]
+
+[patch.crates-io]
+mastodon-async = { path = "../mastodon-async" }

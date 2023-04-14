@@ -15,7 +15,7 @@ use ratatui::{
 };
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
-use tracing::info;
+use tracing::instrument;
 
 enum State {
     Authentication,
@@ -52,8 +52,8 @@ impl Root {
         }
     }
 
+    #[instrument(name = "root", skip_all)]
     pub async fn start(&mut self) -> anyhow::Result<()> {
-        info!("Starting root component");
         self.authentication
             .start()
             .await
@@ -62,6 +62,7 @@ impl Root {
 
     /// Handles an event.
     /// Returns an `Outcome` that indicates whether the event was handled or not.
+    #[instrument(name = "root::handle_event", skip_all)]
     pub async fn handle_event(&mut self, event: &Event) -> Outcome {
         match self.state {
             State::Authentication => {
@@ -72,10 +73,11 @@ impl Root {
                 }
                 self.authentication.handle_event(event).await
             }
-            State::Home => self.home.handle_event(event),
+            State::Home => self.home.handle_event(event).await,
         }
     }
 
+    #[instrument(name = "root::draw", skip_all)]
     pub fn draw(&self, f: &mut Frame<impl Backend>, area: Rect) {
         if let [top, mid, logs, bottom] = *Layout::default()
             .direction(Direction::Vertical)

@@ -1,6 +1,6 @@
-use anyhow::{bail, Context};
+use anyhow::{bail, Context, Result};
 use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyModifiers};
-use mastodon_async::prelude::Status;
+use mastodon_async::{page::Page, prelude::Status, Mastodon};
 use parking_lot::RwLock;
 use ratatui::{
     backend::Backend,
@@ -13,7 +13,7 @@ use ratatui::{
 use std::sync::Arc;
 use time::format_description;
 use tokio::sync::mpsc::Sender;
-use tracing::info;
+use tracing::{debug, error, info, instrument};
 
 use crate::{
     authentication,
@@ -24,7 +24,8 @@ pub struct Home {
     _event_sender: Sender<Event>,
     authentication_data: Arc<RwLock<Option<authentication::State>>>,
     title: String,
-    timeline: Option<Vec<Status>>,
+    timeline_page: Option<Page<Status>>,
+    timeline_items: Option<Vec<Status>>,
     status: String,
     list_state: Arc<RwLock<ListState>>,
 }
@@ -38,26 +39,24 @@ impl Home {
             _event_sender: event_sender,
             authentication_data,
             title: String::new(),
-            timeline: None,
+            timeline_page: None,
+            timeline_items: None,
             status: String::new(),
             list_state: Arc::new(RwLock::new(ListState::default())),
         }
     }
 
-    pub async fn start(&mut self) -> anyhow::Result<()> {
-        info!("Starting home component");
+    #[instrument(name = "home", skip_all)]
+    pub async fn start(&mut self) -> Result<()> {
         let auth = Arc::clone(&self.authentication_data);
         let auth = auth.read().clone(); // easy way to avoid holding the lock over the await below
         if let Some(auth) = auth {
+            info!(username = ?auth.account.username, "logged in");
             let username = auth.account.username.clone();
             let server = auth.config.data.base.trim_start_matches("https://");
             self.title = format!("{username}@{server}");
-            let page = auth
-                .mastodon
-                .get_home_timeline()
-                .await
-                .context("failed to load timeline")?;
-            self.timeline = Some(page.initial_items);
+            let mastodon = auth.mastodon;
+            self.load_home_timeline(mastodon).await?;
         } else {
             self.title = "Not logged in".to_string();
             bail!("not logged in");
@@ -65,16 +64,33 @@ impl Home {
         Ok(())
     }
 
-    pub fn handle_event(&mut self, event: &Event) -> Outcome {
+    #[instrument(skip_all, fields())]
+    async fn load_home_timeline(&mut self, mastodon: Mastodon) -> Result<()> {
+        let page = mastodon
+            .get_home_timeline()
+            .await
+            .context("failed to load timeline")?;
+        info!("loaded timeline page");
+        self.timeline_items = Some(page.initial_items.clone());
+        self.timeline_page = Some(page);
+        Ok(())
+    }
+
+    #[instrument(name = "home::handle_event", skip_all)]
+    pub async fn handle_event(&mut self, event: &Event) -> Outcome {
         match event {
             Event::Crossterm(event) => {
                 if let CrosstermEvent::Key(key) = *event {
                     match (key.modifiers, key.code) {
                         (KeyModifiers::NONE, KeyCode::Char('j')) => {
-                            self.scroll_down();
+                            if let Err(err) = self.scroll_down().await {
+                                error!("failed to scroll down: {:#}", err);
+                            }
                         }
                         (KeyModifiers::NONE, KeyCode::Char('k')) => {
-                            self.scroll_up();
+                            if let Err(err) = self.scroll_up().await {
+                                error!("failed to scroll up: {:#}", err);
+                            }
                         }
                         _ => return Outcome::Ignored,
                     }
@@ -85,28 +101,52 @@ impl Home {
         }
     }
 
-    fn scroll_down(&mut self) {
-        // self.selected += 1;
+    async fn scroll_down(&mut self) -> Result<()> {
         let list_state = Arc::clone(&self.list_state);
         let mut list_state = list_state.write();
-        let index = list_state.selected().map_or(0, |s| s + 1);
+        let mut index = list_state.selected().map_or(0, |s| s + 1);
+        if let Some(items) = &self.timeline_items {
+            if index >= items.len() {
+                info!("loading next page");
+                if let Some(page) = self.timeline_page.as_mut() {
+                    self.timeline_items = page.next_page().await?;
+                    index = 0;
+                }
+            }
+        }
         list_state.select(Some(index));
         self.update_status(index);
+        Ok(())
     }
 
-    fn scroll_up(&mut self) {
-        // self.selected = self.selected.saturating_sub(1);
+    async fn scroll_up(&mut self) -> Result<()> {
         let list_state = Arc::clone(&self.list_state);
         let mut list_state = list_state.write();
-        let index = list_state.selected().map_or(0, |s| s.saturating_sub(1));
+        let mut index = list_state.selected().unwrap_or(0);
+        if let Some(_) = &self.timeline_items {
+            if index == 0 {
+                info!("loading previous page");
+                if let Some(page) = self.timeline_page.as_mut() {
+                    if let Some(prev_items) = page.prev_page().await? {
+                        self.timeline_items = Some(prev_items);
+                        index = self.timeline_items.as_ref().unwrap().len() - 1;
+                    } else {
+                        // tried to go back but there was no previous page
+                        debug!("no previous page");
+                    }
+                }
+            } else {
+                index -= 1;
+            }
+        }
         list_state.select(Some(index));
         self.update_status(index);
+        Ok(())
     }
 
     fn update_status(&mut self, selected: usize) {
-        if let Some(timeline) = &self.timeline {
-            // let selected = Arc::clone(&self.list_state).read().map_or(0, |s| s.selected().unwrap_or_default());
-            if let Some(status) = timeline.get(selected) {
+        if let Some(items) = &self.timeline_items {
+            if let Some(status) = items.get(selected) {
                 let date_format =
                     format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]")
                         .unwrap_or_default();
@@ -129,15 +169,16 @@ impl Home {
         &self.status
     }
 
+    #[instrument(name = "home::draw", skip_all)]
     pub fn draw(&self, frame: &mut Frame<impl Backend>, area: Rect) {
         let mut items = vec![];
-        if let Some(timeline) = &self.timeline {
+        if let Some(timeline_items) = &self.timeline_items {
             // debugging for width and selected item
             // items.push(ListItem::new(
             //     "12345678901234567890123456789012345678901234567890123456789012345678901234567890",
             // ));
             // items.push(ListItem::new(format!("{}", self.selected)));
-            for status in timeline {
+            for status in timeline_items {
                 items.push(ListItem::new(format_status(status, area.width)));
             }
         } else {
