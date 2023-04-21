@@ -37,24 +37,25 @@ fn setup_logging() -> anyhow::Result<(Arc<Mutex<Vec<LogMessage>>>, WorkerGuard)>
     let log_folder = xdg::BaseDirectories::with_prefix("toot-rs")
         .context("failed to get XDG base directories")?
         .get_state_home();
-    let file_appender = tracing_appender::rolling::hourly(log_folder, "toot-rs.log");
+    let file_appender = tracing_appender::rolling::hourly(log_folder, "toot-rs.json");
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
-
-    let file_layer = fmt::layer().json().with_writer(non_blocking);
-
     let filter = EnvFilter::default()
-        .add_directive("hyper=info".parse().unwrap())
-        .add_directive("html5ever=info".parse().unwrap())
-        .add_directive("reqwest=info".parse().unwrap())
-        .add_directive("mastodon_async=trace".parse().unwrap())
-        .add_directive("debug".parse().unwrap());
+        .add_directive("hyper=info".parse()?)
+        .add_directive("html5ever=info".parse()?)
+        .add_directive("reqwest=info".parse()?)
+        .add_directive("mastodon_async=trace".parse()?)
+        .add_directive("debug".parse()?);
+    let file_layer = fmt::layer()
+        .json()
+        .with_writer(non_blocking)
+        .with_filter(filter);
 
     // collect logs in a collector that can be used to display them in the UI
     let log_collector = LogCollector::default();
     let logs = log_collector.logs();
 
     let subscriber = Registry::default()
-        .with(file_layer.with_filter(filter))
+        .with(file_layer)
         .with(log_collector.with_filter(LevelFilter::INFO));
 
     tracing::subscriber::set_global_default(subscriber)
