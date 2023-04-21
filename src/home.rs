@@ -128,8 +128,8 @@ impl Home {
                 info!("loading previous page");
                 if let Some(page) = self.timeline_page.as_mut() {
                     if let Some(prev_items) = page.prev_page().await? {
+                        index = prev_items.len().saturating_sub(1);
                         self.timeline_items = Some(prev_items);
-                        index = self.timeline_items.as_ref().unwrap().len() - 1;
                     } else {
                         // tried to go back but there was no previous page
                         debug!("no previous page");
