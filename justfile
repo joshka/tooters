@@ -1,6 +1,11 @@
-logs:
-    # bat ~/.local/state/toot-rs/toot-rs.log.*
-    jq -C . ~/.local/state/toot-rs/toot-rs.log.* | bat
+run:
+    cargo run
+
+bat-logs:
+    bat ~/.local/state/toot-rs/log.json.* --wrap=never --language=json
+
+jq-logs:
+    jq -C . ~/.local/state/toot-rs/log.json.* | bat
 
 rm-logs:
-    rm -rf  ~/.local/state/toot-rs/toot-rs.log.*
+    rm -rf  ~/.local/state/toot-rs/log.json}.*
