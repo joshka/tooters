@@ -74,7 +74,7 @@ impl App {
                         }
                     }
                     if self.root.handle_event(&event).await == Outcome::Handled {
-                        debug!(?event, "Event handled by root component");
+                        trace!(?event, "Event handled by root component");
                         continue;
                     }
                     if let Event::Crossterm(Key(key)) = event {

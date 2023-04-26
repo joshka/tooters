@@ -22,7 +22,7 @@ use tokio::sync::{
     mpsc::{self, Receiver, Sender},
     Mutex,
 };
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 use tui_input::{backend::crossterm::EventHandler, Input};
 
 #[derive(Debug)]
@@ -89,6 +89,7 @@ impl Authentication {
         widget.draw(f, area);
     }
 
+    #[instrument(name = "authentication", skip_all)]
     pub async fn start(&mut self) -> Result<()> {
         info!("Starting authentication component");
         let error = Arc::clone(&self.error);
@@ -96,22 +97,38 @@ impl Authentication {
         let server_url_receiver = self.server_url_receiver.clone();
         let event_sender = self.event_sender.clone();
         tokio::spawn(async move {
-            loop {
-                let server_url_receiver = server_url_receiver.clone();
-                let authentication_data = authentication_data.clone();
-                match load_config_or_authorize(server_url_receiver, authentication_data).await {
-                    Ok(_) => break,
-                    Err(e) => {
-                        warn!("Authentication attempt failed: {:#}", e);
-                        display_error(&e, &error);
-                    }
-                }
-            }
-            if let Err(err) = event_sender.send(Event::AuthenticationSuccess).await {
-                error!("Error sending authentication success message: {:?}", err);
-            }
+            auth_loop(
+                server_url_receiver,
+                authentication_data,
+                event_sender,
+                error,
+            )
+            .await;
         });
         Ok(())
+    }
+}
+
+#[instrument(skip_all)]
+async fn auth_loop(
+    server_url_receiver: Arc<Mutex<Receiver<String>>>,
+    authentication_data: Arc<RwLock<Option<State>>>,
+    event_sender: Sender<Event>,
+    error: Arc<RwLock<Option<String>>>,
+) {
+    loop {
+        let server_url_receiver = server_url_receiver.clone();
+        let authentication_data = Arc::clone(&authentication_data);
+        match load_config_or_authorize(server_url_receiver, authentication_data).await {
+            Ok(_) => break,
+            Err(e) => {
+                warn!("Authentication attempt failed: {:#}", e);
+                display_error(&e, &error);
+            }
+        }
+    }
+    if let Err(err) = event_sender.send(Event::AuthenticationSuccess).await {
+        error!("Error sending authentication success message: {:?}", err);
     }
 }
 
@@ -140,11 +157,7 @@ async fn load_config_or_authorize(
         }
     };
 
-    let account = mastodon
-        .verify_credentials()
-        .await
-        .context("failed to verify credentials")?;
-    info!("Verified credentials. Logged in as {}", account.username);
+    let account = verify_credentials(&mastodon).await?;
     let mut authentication_data = authentication_data.write();
     *authentication_data = Some(State {
         mastodon: mastodon.clone(),
@@ -152,6 +165,16 @@ async fn load_config_or_authorize(
         account,
     });
     Ok(())
+}
+
+#[instrument(skip_all)]
+async fn verify_credentials(mastodon: &Mastodon) -> Result<Account> {
+    let account = mastodon
+        .verify_credentials()
+        .await
+        .context("failed to verify credentials")?;
+    info!("Verified credentials. Logged in as {}", account.username);
+    Ok(account)
 }
 
 async fn authorize(server_url_receiver: Arc<Mutex<Receiver<String>>>) -> Result<Mastodon> {
