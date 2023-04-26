@@ -1,6 +1,10 @@
 use anyhow::{bail, Context, Result};
 use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyModifiers};
-use mastodon_async::{page::Page, prelude::Status, Mastodon};
+use mastodon_async::{
+    page::Page,
+    prelude::{Card, Status},
+    Mastodon,
+};
 use parking_lot::RwLock;
 use ratatui::{
     backend::Backend,
@@ -11,6 +15,7 @@ use ratatui::{
     Frame,
 };
 use std::sync::Arc;
+use textwrap::Options;
 use time::format_description;
 use tokio::sync::mpsc::Sender;
 use tracing::{debug, error, info, instrument};
@@ -66,13 +71,17 @@ impl Home {
 
     #[instrument(skip_all, fields())]
     async fn load_home_timeline(&mut self, mastodon: Mastodon) -> Result<()> {
+        info!("loading home timeline");
         let page = mastodon
             .get_home_timeline()
             .await
             .context("failed to load timeline")?;
-        info!("loaded timeline page");
+        info!("loaded home timeline");
         self.timeline_items = Some(page.initial_items.clone());
         self.timeline_page = Some(page);
+        let list_state = Arc::clone(&self.list_state);
+        let mut list_state = list_state.write();
+        list_state.select(Some(0));
         Ok(())
     }
 
@@ -147,16 +156,12 @@ impl Home {
     fn update_status(&mut self, selected: usize) {
         if let Some(items) = &self.timeline_items {
             if let Some(status) = items.get(selected) {
-                let date_format =
-                    format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]")
-                        .unwrap_or_default();
-                let date = status.created_at.format(&date_format).unwrap_or_default();
                 let url = status
                     .reblog
                     .as_ref()
                     .map_or(status.url.clone(), |reblog| reblog.url.clone())
                     .unwrap_or_default();
-                self.status = format!("({date}) {url}");
+                self.status = format!("{url}");
             }
         }
     }
@@ -173,11 +178,6 @@ impl Home {
     pub fn draw(&self, frame: &mut Frame<impl Backend>, area: Rect) {
         let mut items = vec![];
         if let Some(timeline_items) = &self.timeline_items {
-            // debugging for width and selected item
-            // items.push(ListItem::new(
-            //     "12345678901234567890123456789012345678901234567890123456789012345678901234567890",
-            // ));
-            // items.push(ListItem::new(format!("{}", self.selected)));
             for status in timeline_items {
                 items.push(ListItem::new(format_status(status, area.width)));
             }
@@ -185,10 +185,8 @@ impl Home {
             items.push(ListItem::new("Loading timeline..."));
         }
         // this looks great on a dark theme, but not so much on a light one
-        let style = Style::default().bg(Color::Rgb(16, 32, 64));
+        let style = Style::default().bg(Color::Rgb(48, 64, 96));
         let list = List::new(items).highlight_style(style);
-        // let mut state = ListState::default();
-        // state.select(Some(self.selected));
         let list_state = Arc::clone(&self.list_state);
         let mut state = list_state.write();
         frame.render_stateful_widget(list, area, &mut state);
@@ -196,24 +194,99 @@ impl Home {
 }
 
 fn format_status(status: &Status, width: u16) -> Text {
+    // eventually this should be themed instead of hardcoded
+    let header_bg = Color::Rgb(80, 96, 128);
+    let subtle_fg = Color::Rgb(160, 176, 208);
+    let acct_fg = Color::LightYellow;
+    let display_fg = Color::LightGreen;
+
+    let date_format = format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]")
+        .unwrap_or_default();
+    let date = status.created_at.format(&date_format).unwrap_or_default();
+    let date_span = Span::styled(
+        format!("{date} "),
+        Style::default().bg(header_bg).fg(subtle_fg),
+    );
+
     let account = &status.account;
     let reblog = status.reblog.as_ref();
-    let acct = reblog.map_or(account.acct.clone(), |reblog| reblog.account.acct.clone());
-    let display_name = reblog.map_or(account.display_name.clone(), |reblog| {
-        reblog.account.display_name.clone()
+
+    let acct_span = Span::styled(
+        format!("{} ", account.acct),
+        Style::default().bg(header_bg).fg(acct_fg),
+    );
+    let display_span = Span::styled(
+        format!("({}) ", account.display_name),
+        Style::default()
+            .bg(header_bg)
+            .fg(display_fg)
+            .add_modifier(Modifier::ITALIC),
+    );
+    let reblog_span = reblog.map_or(Span::from(""), |_| {
+        Span::styled("reblogging ", Style::default().bg(header_bg).fg(subtle_fg))
     });
-    let mut text = Text::from(Spans::from(vec![
-        Span::styled(format!("{acct} "), Style::default().fg(Color::Yellow)),
+    let reblog_acct_span = reblog.map_or(Span::from(""), |status| {
         Span::styled(
-            format!("({display_name})"),
+            format!("{} ", status.account.acct),
+            Style::default().bg(header_bg).fg(acct_fg),
+        )
+    });
+    let reblog_display_span = reblog.map_or(Span::from(""), |status| {
+        Span::styled(
+            format!("({}) ", status.account.display_name),
             Style::default()
-                .fg(Color::Green)
+                .bg(header_bg)
+                .fg(display_fg)
                 .add_modifier(Modifier::ITALIC),
-        ),
+        )
+    });
+
+    let mut text = Text::from(Spans::from(vec![
+        date_span,
+        acct_span,
+        display_span,
+        reblog_span,
+        reblog_acct_span,
+        reblog_display_span,
     ]));
-    let html = reblog.map_or(status.content.clone(), |reblog| reblog.content.clone());
-    let content = html2text::from_read(html.as_bytes(), width as usize);
-    text.extend(Text::from(content));
+
+    // Main content
+    let html = status.content.trim().clone();
+    if !html.is_empty() {
+        let content = html2text::from_read(html.as_bytes(), width as usize);
+        text.extend(Text::from(content));
+    }
+
+    // reblogged content
+    if let Some(status) = reblog {
+        let html = status.content.clone();
+        let content = html2text::from_read(html.as_bytes(), (width - 2) as usize);
+        // let content = textwrap::indent(&content, "▌ ");
+        text.extend(Text::from(content));
+    }
+
+    // card
+    if let Some(card) = &status.card {
+        let content = format_card(card, width);
+        text.extend(Text::styled(content, Style::default().fg(Color::DarkGray)));
+    }
     text.extend(Text::raw(""));
     text
+}
+
+fn format_card(card: &Card, width: u16) -> String {
+    let mut content = card.url.clone();
+    if card.title.trim() != "" {
+        content.push_str(format!("\ntitle: {}", card.title).as_str());
+    }
+    if card.description.trim() != "" {
+        content.push_str(format!("\ndescription: {}", card.description).as_str());
+    }
+    let content = textwrap::fill(
+        &content,
+        Options::new((width - 2) as usize)
+            .initial_indent("▌ ")
+            .subsequent_indent("▌ "),
+    );
+    content
 }
