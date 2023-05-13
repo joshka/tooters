@@ -1865,7 +1865,6 @@ dependencies = [
  "futures",
  "html2text",
  "indoc",
- "log",
  "mastodon-async",
  "parking_lot",
  "ratatui",

@@ -17,7 +17,6 @@ crossterm = { version = "0.26", features = ["event-stream"] }
 futures = "0.3"
 html2text = "0.5"
 tui-input = "0.7"
-log = "0.4"
 mastodon-async = { version = "1.2", features = ["toml"] }
 parking_lot = "0.12"
 ratatui = { version = "0.20" }

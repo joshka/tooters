@@ -8,7 +8,11 @@ use toot_rs::{
 use tracing::{error, info, metadata::LevelFilter};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_log::LogTracer;
-use tracing_subscriber::{fmt, prelude::*, EnvFilter, Registry};
+use tracing_subscriber::{
+    fmt::{self, format::FmtSpan},
+    prelude::*,
+    EnvFilter, Registry,
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -44,6 +48,7 @@ fn setup_logging() -> anyhow::Result<(Arc<Mutex<Vec<LogMessage>>>, WorkerGuard)>
         .add_directive("debug".parse()?);
     let file_layer = fmt::layer()
         .json()
+        .with_span_events(FmtSpan::ACTIVE)
         .with_writer(non_blocking)
         .with_filter(filter);
 

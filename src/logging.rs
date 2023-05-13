@@ -5,7 +5,7 @@ use ratatui::{
     layout::{Alignment, Rect},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
-    widgets::{Block, Borders, Paragraph, Widget, Wrap},
+    widgets::{Block, Borders, Paragraph, Widget},
 };
 use std::sync::Arc;
 use tracing::{
@@ -79,7 +79,7 @@ impl LogWidget {
 impl Widget for LogWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let logs = self.logs.lock();
-        let max_lines = area.height as usize;
+        let max_lines = area.height as usize - 2;
         let start_index = if logs.len() > max_lines {
             logs.len() - max_lines
         } else {
@@ -109,8 +109,7 @@ impl Widget for LogWidget {
 
         let paragraph = Paragraph::new(text)
             .block(Block::default().borders(Borders::ALL).title("Logs"))
-            .alignment(Alignment::Left)
-            .wrap(Wrap { trim: true });
+            .alignment(Alignment::Left);
 
         paragraph.render(area, buf);
     }

@@ -5,7 +5,7 @@ use crate::{
     logging::{LogMessage, LogWidget},
     widgets::{StatusBar, TitleBar},
 };
-use anyhow::Context;
+use anyhow::{Context, Result};
 use parking_lot::Mutex;
 use parking_lot::RwLock;
 use ratatui::{
@@ -62,14 +62,14 @@ impl Root {
 
     /// Handles an event.
     /// Returns an `Outcome` that indicates whether the event was handled or not.
-    #[instrument(name = "root::handle_event", skip_all)]
-    pub async fn handle_event(&mut self, event: &Event) -> Outcome {
+    #[instrument(name = "root::handle_event", skip(self))]
+    pub async fn handle_event(&mut self, event: &Event) -> Result<Outcome> {
         match self.state {
             State::Authentication => {
                 if event == &Event::AuthenticationSuccess {
                     self.state = State::Home;
                     self.home.start().await.ok();
-                    return Outcome::Handled;
+                    return Ok(Outcome::Handled);
                 }
                 self.authentication.handle_event(event).await
             }

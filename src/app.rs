@@ -52,7 +52,7 @@ impl App {
         Ok(())
     }
 
-    async fn main_loop(&mut self) -> Result<(), anyhow::Error> {
+    async fn main_loop(&mut self) -> Result<()> {
         loop {
             self.ui.draw(|f| {
                 self.root.draw(f, f.size());
@@ -64,7 +64,7 @@ impl App {
                 }
                 Some(Event::Tick) => {
                     trace!("Received tick event");
-                    self.root.handle_event(&Event::Tick).await;
+                    self.root.handle_event(&Event::Tick).await?;
                 }
                 Some(event) => {
                     if let Event::Crossterm(Key(key)) = event {
@@ -73,7 +73,7 @@ impl App {
                             break;
                         }
                     }
-                    if self.root.handle_event(&event).await == Outcome::Handled {
+                    if self.root.handle_event(&event).await? == Outcome::Handled {
                         trace!(?event, "Event handled by root component");
                         continue;
                     }

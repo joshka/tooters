@@ -62,7 +62,7 @@ impl Authentication {
         String::from("Authenticating at ") + self.server_url_input.value()
     }
 
-    pub async fn handle_event(&mut self, event: &Event) -> Outcome {
+    pub async fn handle_event(&mut self, event: &Event) -> Result<Outcome> {
         trace!(?event, "AuthenticationComponent::handle_event");
         match event {
             Event::Crossterm(CrosstermEvent::Key(key_event))
@@ -73,13 +73,13 @@ impl Authentication {
                     .send(self.server_url_input.value().to_string())
                     .await
                     .ok();
-                Outcome::Handled
+                Ok(Outcome::Handled)
             }
             Event::Crossterm(e) => {
                 self.server_url_input.handle_event(e);
-                Outcome::Handled
+                Ok(Outcome::Handled)
             }
-            _ => Outcome::Ignored,
+            _ => Ok(Outcome::Ignored),
         }
     }
 
