@@ -10,6 +10,10 @@ Visit our website at [toot.rs](https://toot.rs) for more information and updates
 
 [![asciicast](https://asciinema.org/a/576920.svg)](https://asciinema.org/a/576920)
 
+## Status
+
+Experimental, work in progress.
+
 ## Known issues
 
 - does not load second page of toots (yet)
@@ -57,7 +61,7 @@ can navigate and interact with toots using the keyboard shortcuts provided.
 
 ## License
 
-Copyright (c) 2024 Josh McKinney
+Copyright (c) 2023-2024 Josh McKinney
 
 This project is licensed under either of:
 
