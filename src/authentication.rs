@@ -6,14 +6,13 @@ use mastodon_async::{
 };
 use parking_lot::RwLock;
 use ratatui::{
-    backend::Backend,
     buffer::Buffer,
     layout::Rect,
     layout::{Constraint, Direction, Layout},
     style::Color,
     style::{Modifier, Style},
+    text::Line,
     text::Span,
-    text::Spans,
     widgets::Paragraph,
     Frame,
 };
@@ -83,7 +82,7 @@ impl Authentication {
         }
     }
 
-    pub fn draw(&self, f: &mut Frame<impl Backend>, area: Rect) {
+    pub fn draw(&self, f: &mut Frame, area: Rect) {
         let error = self.error.read().clone();
         let widget = Widget::new(error, self.server_url_input.value().to_string());
         widget.draw(f, area);
@@ -250,13 +249,12 @@ mod server {
             "Starting webserver to listen for authentication callback on port {}",
             port
         );
-        let addr = ([127, 0, 0, 1], port).into();
         let router = Router::new()
             .route("/callback", get(handler))
             .with_state(state);
-        let server = axum::Server::bind(&addr).serve(router.into_make_service());
-        server
-            .with_graceful_shutdown(async {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:7007").await?;
+        axum::serve(listener, router)
+            .with_graceful_shutdown(async move {
                 shutdown_reciever.recv().await;
             })
             .await
@@ -321,7 +319,7 @@ impl Widget {
         Self { error, server_url }
     }
 
-    pub fn draw(self, f: &mut Frame<impl Backend>, area: Rect) {
+    pub fn draw(self, f: &mut Frame, area: Rect) {
         f.render_widget(self, area);
     }
 }
@@ -343,7 +341,7 @@ impl ratatui::widgets::Widget for Widget {
                 .render(welcome_area, buf);
 
             if let Some(error) = self.error {
-                Paragraph::new(Spans::from(vec![
+                Paragraph::new(Line::from(vec![
                     Span::styled(
                         "Error:",
                         Style::default().add_modifier(Modifier::BOLD).fg(Color::Red),
@@ -354,7 +352,7 @@ impl ratatui::widgets::Widget for Widget {
                 .render(error_area, buf);
             }
 
-            Paragraph::new(Spans::from(vec![
+            Paragraph::new(Line::from(vec![
                 Span::styled("Server URL:", Style::default().add_modifier(Modifier::BOLD)),
                 Span::raw(" "),
                 Span::raw(self.server_url),

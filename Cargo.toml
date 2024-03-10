@@ -11,21 +11,21 @@ keywords = ["mastodon", "tui", "cli"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-anyhow = "1.0"
-axum = { version = "0.6", features = ["tokio"] }
-crossterm = { version = "0.26", features = ["event-stream"] }
-femme = "2.2"
-futures = "0.3"
-html2text = "0.5"
-tui-input = "0.7"
-log = "0.4"
-mastodon-async = { version = "1.2", features = ["toml"] }
-parking_lot = "0.12"
-ratatui = { version = "0.20" }
-signal-hook = "0.3"
-signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }
-time = "0.3"
-tokio = { version = "1", features = [
+anyhow = "1.0.80"
+axum = { version = "0.7.4", features = ["tokio"] }
+crossterm = { version = "0.27.0", features = ["event-stream"] }
+femme = "2.2.1"
+futures = "0.3.30"
+html2text = "0.12.4"
+tui-input = "0.8.0"
+log = "0.4.21"
+mastodon-async = { version = "1.3.2", features = ["toml"] }
+parking_lot = "0.12.1"
+ratatui = { version = "0.26.1" }
+signal-hook = "0.3.17"
+signal-hook-tokio = { version = "0.3.1", features = ["futures-v0_3"] }
+time = "0.3.34"
+tokio = { version = "1.36.0", features = [
   "macros",
   "rt-multi-thread",
   "signal",
@@ -33,16 +33,16 @@ tokio = { version = "1", features = [
   "time",
   "tracing",
 ] }
-tracing = "0.1"
-tracing-appender = "0.2"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-tracing-log = "0.1"
-webbrowser = "0.8"
-xdg = "2.4"
+tracing = "0.1.40"
+tracing-appender = "0.2.3"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tracing-log = "0.2.0"
+webbrowser = "0.8.13"
+xdg = "2.5.2"
 
 [dev-dependencies]
-tempfile = "3"
-indoc = "2"
+tempfile = "3.10.1"
+indoc = "2.0.4"
 
 # The profile that 'cargo dist' will build with
 [profile.dist]

@@ -9,7 +9,6 @@ use anyhow::Context;
 use parking_lot::Mutex;
 use parking_lot::RwLock;
 use ratatui::{
-    backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
     Frame,
 };
@@ -76,7 +75,7 @@ impl Root {
         }
     }
 
-    pub fn draw(&self, f: &mut Frame<impl Backend>, area: Rect) {
+    pub fn draw(&self, f: &mut Frame, area: Rect) {
         if let [top, mid, logs, bottom] = *Layout::default()
             .direction(Direction::Vertical)
             .constraints([

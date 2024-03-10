@@ -2,7 +2,7 @@ use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Modifier, Style},
-    text::{Span, Spans},
+    text::{Line, Span},
     widgets::{Paragraph, Widget},
 };
 
@@ -22,7 +22,7 @@ impl<'a> Widget for StatusBar<'a> {
         let style = Style::default().fg(Color::White).bg(Color::Blue);
         let bold = Style::default().add_modifier(Modifier::BOLD);
         let text = Span::raw(self.text);
-        let text = Spans::from(vec![
+        let text = Line::from(vec![
             Span::styled("Esc ", bold),
             Span::raw("quit | "),
             Span::styled("J", bold),
@@ -52,7 +52,7 @@ impl<'a> Widget for TitleBar<'a> {
         let style = Style::default().fg(Color::White).bg(Color::Blue);
         let bold = Style::default().add_modifier(Modifier::BOLD);
         let gray = Style::default().fg(Color::Gray);
-        let text = Spans::from(vec![
+        let text = Line::from(vec![
             Span::styled("Toot-rs", bold),
             Span::raw(" | "),
             Span::styled(self.title, gray),

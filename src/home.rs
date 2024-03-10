@@ -3,10 +3,9 @@ use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyModifiers};
 use mastodon_async::prelude::Status;
 use parking_lot::RwLock;
 use ratatui::{
-    backend::Backend,
     layout::Rect,
     style::{Color, Modifier, Style},
-    text::{Span, Spans, Text},
+    text::{Line, Span, Text},
     widgets::{List, ListItem, ListState},
     Frame,
 };
@@ -129,7 +128,7 @@ impl Home {
         &self.status
     }
 
-    pub fn draw(&self, frame: &mut Frame<impl Backend>, area: Rect) {
+    pub fn draw(&self, frame: &mut Frame, area: Rect) {
         let mut items = vec![];
         if let Some(timeline) = &self.timeline {
             // debugging for width and selected item
@@ -161,7 +160,7 @@ fn format_status(status: &Status, width: u16) -> Text {
     let display_name = reblog.map_or(account.display_name.clone(), |reblog| {
         reblog.account.display_name.clone()
     });
-    let mut text = Text::from(Spans::from(vec![
+    let mut text = Text::from(Line::from(vec![
         Span::styled(format!("{acct} "), Style::default().fg(Color::Yellow)),
         Span::styled(
             format!("({display_name})"),

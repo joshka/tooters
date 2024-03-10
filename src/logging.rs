@@ -4,7 +4,7 @@ use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Rect},
     style::{Color, Modifier, Style},
-    text::{Span, Spans},
+    text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Widget, Wrap},
 };
 use std::sync::Arc;
@@ -97,7 +97,7 @@ impl Widget for LogWidget {
                     "TRACE" => Color::Cyan,
                     _ => Color::White,
                 };
-                Spans::from(vec![
+                Line::from(vec![
                     Span::styled(&log.level, Style::default().fg(level_color)),
                     Span::raw(" "),
                     Span::styled(&log.target, Style::default().add_modifier(Modifier::DIM)),
