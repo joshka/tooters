@@ -428,22 +428,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25cbce373ec4653f1a01a31e8a5e5ec0c622dc27ff9c4e6606eefef5cbbed4a5"
 
 [[package]]
-name = "femme"
-version = "2.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc04871e5ae3aa2952d552dae6b291b3099723bf779a8054281c1366a54613ef"
-dependencies = [
- "cfg-if",
- "js-sys",
- "log",
- "serde",
- "serde_derive",
- "serde_json",
- "wasm-bindgen",
- "web-sys",
-]
-
-[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2213,11 +2197,9 @@ dependencies = [
  "anyhow",
  "axum",
  "crossterm",
- "femme",
  "futures",
  "html2text",
  "indoc",
- "log",
  "mastodon-async",
  "parking_lot",
  "ratatui",
@@ -2514,8 +2496,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31f8dcbc21f30d9b8f2ea926ecb58f6b91192c17e9d33594b3df58b2007ca53b"
 dependencies = [
  "cfg-if",
- "serde",
- "serde_json",
  "wasm-bindgen-macro",
 ]
 
