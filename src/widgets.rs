@@ -53,7 +53,7 @@ impl<'a> Widget for TitleBar<'a> {
         let bold = Style::default().add_modifier(Modifier::BOLD);
         let gray = Style::default().fg(Color::Gray);
         let text = Line::from(vec![
-            Span::styled("Toot-rs", bold),
+            Span::styled("Tooters", bold),
             Span::raw(" | "),
             Span::styled(self.title, gray),
         ]);

@@ -1,6 +1,10 @@
-# Toot-rs: A Rust TUI-based Mastodon App
+# Tooters: A Rust TUI-based Mastodon App
 
-Toot-rs (formerly known as tooters) is a Rust-based Terminal User Interface (TUI) Mastodon app that allows you to view multiple toots on the screen at once. The project was created as a means to learn Rust and scratch a personal itch - the desire to see multiple toots on the screen at once. See the awesome python based [toot](https://github.com/ihabunek/toot), for something more complete.
+Tooters is a Rust-based Terminal User Interface (TUI) Mastodon app.
+
+The project was created as a means to learn Rust and scratch a personal
+itch See the awesome python based
+[toot](https://github.com/ihabunek/toot), for something more complete.
 
 Visit our website at [toot.rs](https://toot.rs) for more information and updates.
 
@@ -18,23 +22,26 @@ Visit our website at [toot.rs](https://toot.rs) for more information and updates
 
 ## Installation
 
-To install Toot-rs, you need to have Rust and Cargo installed on your system. If you don't have them installed, follow the instructions on the [official Rust website](https://www.rust-lang.org/tools/install).
+To install Tooters, you need to have Rust and Cargo installed on your system. If you don't have them
+installed, follow the instructions on the [official Rust
+website](https://www.rust-lang.org/tools/install).
 
-Once Rust and Cargo are installed, you can install Toot-rs by running the following command:
+Once Rust and Cargo are installed, you can install Tooters by running the following command:
 
 ```bash
-cargo install toot-rs
+cargo install tooters --locked
 ```
 
 ## Usage
 
-To start using Toot-rs, simply run the following command in your terminal:
+To start using Tooters, simply run the following command in your terminal:
 
 ```bash
-toot-rs
+tooters
 ```
 
-You will be prompted to enter your Mastodon instance URL and login credentials. Once logged in, you can navigate and interact with toots using the keyboard shortcuts provided.
+You will be prompted to enter your Mastodon instance URL and login credentials. Once logged in, you
+can navigate and interact with toots using the keyboard shortcuts provided.
 
 ## Keyboard Shortcuts
 
@@ -48,10 +55,22 @@ You will be prompted to enter your Mastodon instance URL and login credentials. 
 - [ ] `f`: Favourite the selected toot
 - [x] `q`: Quit
 
-## Contributing
-
-We welcome contributions to Toot-rs! If you'd like to contribute, please fork the repository, make your changes, and submit a pull request. If you find any bugs or have feature requests, please open an issue on the GitHub repository.
-
 ## License
 
-Toot-rs is released under the MIT License. See the [LICENSE](LICENSE) file for more information.
+Copyright (c) 2024 Josh McKinney
+
+This project is licensed under either of:
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or
+  <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+
+at your option.
+
+## Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the
+work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any
+additional terms or conditions.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).

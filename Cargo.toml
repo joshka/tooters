@@ -1,11 +1,11 @@
 [package]
-name = "toot-rs"
+name = "tooters"
 version = "0.0.5"
 edition = "2021"
 license-file = "LICENSE.txt"
 description = "A Rust TUI Mastodon App"
 homepage = "https://toot.rs"
-repository = "https://github.com/toot-rs/toot-rs"
+repository = "https://github.com/joshka/tooters"
 readme = "README.md"
 keywords = ["mastodon", "tui", "cli"]
 categories = ["command-line-utilities"]

@@ -143,9 +143,9 @@ async fn load_config_or_authorize(
 async fn authorize(server_url_receiver: Arc<Mutex<Receiver<String>>>) -> Result<Mastodon> {
     info!("Waiting for server url...");
     let server_url = get_server_url(server_url_receiver).await?;
-    info!("Registering Toot-rs at: {}", server_url);
+    info!("Registering Tooters at: {}", server_url);
     let registered = register_client_app(server_url).await?;
-    info!("Toot-rs client registered");
+    info!("Tooters client registered");
     let auth_code = get_auth_code(&registered).await?;
     debug!("Auth code: {}", auth_code);
     let mastodon = complete_registration(&registered, auth_code).await?;
@@ -166,13 +166,13 @@ async fn get_server_url(server_url_receiver: Arc<Mutex<Receiver<String>>>) -> Re
 /// Register the client with the server
 async fn register_client_app(server_url: String) -> Result<Registered> {
     Registration::new(&server_url)
-        .client_name("Toot-rs")
-        .website("https://github.com/toot-rs/toot-rs")
+        .client_name("Tooters")
+        .website("https://github.com/joshka/tooters")
         .redirect_uris("http://localhost:7007/callback")
         .scopes(Scopes::all())
         .build()
         .await
-        .wrap_err(format!("unable to register toot-rs with {server_url}"))
+        .wrap_err(format!("unable to register tooters with {server_url}"))
 }
 
 /// Launch a browser to the authorization url and get the auth code from the user
@@ -306,7 +306,7 @@ impl Widget for &Authentication {
         use Constraint::*;
         let [welcome_area, error_area, server_url_area] =
             Layout::vertical([Length(3), Length(error_height), Length(2)]).areas(area);
-        Paragraph::new("Welcome to toot-rs. Sign in to your mastodon server.\nYou will be redirected to your browser to complete the authentication process.")
+        Paragraph::new("Welcome to tooters. Sign in to your mastodon server.\nYou will be redirected to your browser to complete the authentication process.")
             .render(welcome_area, buf);
 
         if let Some(error) = error {

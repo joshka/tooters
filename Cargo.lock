@@ -2234,7 +2234,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "toot-rs"
+name = "tooters"
 version = "0.0.5"
 dependencies = [
  "axum",
