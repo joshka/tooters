@@ -4,7 +4,7 @@ use crate::{
     root::Root,
     ui::UI,
 };
-use anyhow::{Context, Result};
+use color_eyre::{eyre::Context, Result};
 use crossterm::event::{
     Event::Key,
     KeyCode::{self, Char},
@@ -52,7 +52,7 @@ impl App {
         Ok(())
     }
 
-    async fn main_loop(&mut self) -> Result<(), anyhow::Error> {
+    async fn main_loop(&mut self) -> Result<()> {
         loop {
             self.ui.draw(|f| {
                 self.root.draw(f, f.size());

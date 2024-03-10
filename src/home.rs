@@ -1,4 +1,7 @@
-use anyhow::{bail, Context};
+use color_eyre::{
+    eyre::{bail, Context},
+    Result,
+};
 use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyModifiers};
 use mastodon_async::prelude::Status;
 use parking_lot::RwLock;
@@ -43,7 +46,7 @@ impl Home {
         }
     }
 
-    pub async fn start(&mut self) -> anyhow::Result<()> {
+    pub async fn start(&mut self) -> Result<()> {
         info!("Starting home component");
         let auth = Arc::clone(&self.authentication_data);
         let auth = auth.read().clone(); // easy way to avoid holding the lock over the await below

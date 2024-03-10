@@ -5,7 +5,8 @@ use crate::{
     logging::{LogMessage, LogWidget},
     widgets::{StatusBar, TitleBar},
 };
-use anyhow::Context;
+
+use color_eyre::{eyre::Context, Result};
 use parking_lot::Mutex;
 use parking_lot::RwLock;
 use ratatui::{
@@ -51,7 +52,7 @@ impl Root {
         }
     }
 
-    pub async fn start(&mut self) -> anyhow::Result<()> {
+    pub async fn start(&mut self) -> Result<()> {
         info!("Starting root component");
         self.authentication
             .start()

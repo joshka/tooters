@@ -1,4 +1,4 @@
-use anyhow::Result;
+use color_eyre::Result;
 use crossterm::event::{Event as CrosstermEvent, EventStream};
 use futures::StreamExt;
 use signal_hook::consts::{SIGHUP, SIGINT, SIGQUIT, SIGTERM};

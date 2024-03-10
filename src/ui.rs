@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use color_eyre::{eyre::Context, Result};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::{backend::CrosstermBackend, Frame, Terminal};
 use std::io::{self, Stdout};

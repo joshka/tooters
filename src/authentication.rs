@@ -1,5 +1,5 @@
 use crate::{config::Config, event::Event, event::Outcome};
-use anyhow::{Context, Result};
+use color_eyre::{eyre::Context, Result};
 use crossterm::event::{Event as CrosstermEvent, KeyCode};
 use mastodon_async::{
     prelude::Account, registration::Registered, scopes::Scopes, Mastodon, Registration,
@@ -114,7 +114,7 @@ impl Authentication {
     }
 }
 
-fn display_error(e: &anyhow::Error, error: &Arc<RwLock<Option<String>>>) {
+fn display_error(e: &color_eyre::eyre::Error, error: &Arc<RwLock<Option<String>>>) {
     *error.write() = Some(e.to_string());
 }
 
@@ -173,7 +173,7 @@ async fn get_server_url(server_url_receiver: Arc<Mutex<Receiver<String>>>) -> Re
     server_url_receiver
         .recv()
         .await
-        .ok_or_else(|| anyhow::Error::msg("Error getting server url"))
+        .ok_or_else(|| color_eyre::eyre::Error::msg("Error getting server url"))
 }
 
 /// Register the client with the server
@@ -215,13 +215,16 @@ async fn complete_registration(registered: &Registered, code: String) -> Result<
 /// a small webserver to listen for the authentication code callback from the
 /// mastodon server
 mod server {
-    use anyhow::{Context, Result};
     use axum::{
         extract::{Query, State},
         http::StatusCode,
         response::{IntoResponse, Response},
         routing::get,
         Router,
+    };
+    use color_eyre::{
+        eyre::{Context, ContextCompat},
+        Result,
     };
     use std::collections::HashMap;
     use tokio::sync::mpsc::{channel, Sender};
@@ -286,8 +289,8 @@ mod server {
         Ok("Authentication successful! You can close this window now.")
     }
 
-    /// helper type to convert `anyhow::Error`s into responses
-    struct AppError(anyhow::Error);
+    /// helper type to convert `eyre::Error`s into responses
+    struct AppError(color_eyre::eyre::Error);
 
     /// Implements `IntoResponse` for `AppError`, converting it into a response with status code 500.
     impl IntoResponse for AppError {
@@ -300,7 +303,7 @@ mod server {
     /// from any type implementing `Into<anyhow::Error>`.
     impl<E> From<E> for AppError
     where
-        E: Into<anyhow::Error>,
+        E: Into<color_eyre::eyre::Error>,
     {
         fn from(error: E) -> Self {
             Self(error.into())
