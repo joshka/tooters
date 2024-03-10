@@ -6,11 +6,8 @@ use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyModifiers};
 use mastodon_async::prelude::Status;
 use parking_lot::RwLock;
 use ratatui::{
-    layout::Rect,
-    style::{Color, Modifier, Style},
-    text::{Line, Span, Text},
+    prelude::{Buffer, *},
     widgets::{List, ListItem, ListState},
-    Frame,
 };
 use std::sync::Arc;
 use time::format_description;
@@ -130,8 +127,10 @@ impl Home {
     pub fn status(&self) -> &str {
         &self.status
     }
+}
 
-    pub fn draw(&self, frame: &mut Frame, area: Rect) {
+impl Widget for &Home {
+    fn render(self, area: Rect, buf: &mut Buffer) {
         let mut items = vec![];
         if let Some(timeline) = &self.timeline {
             // debugging for width and selected item
@@ -152,7 +151,7 @@ impl Home {
         // state.select(Some(self.selected));
         let list_state = Arc::clone(&self.list_state);
         let mut state = list_state.write();
-        frame.render_stateful_widget(list, area, &mut state);
+        StatefulWidget::render(list, area, buf, &mut state);
     }
 }
 

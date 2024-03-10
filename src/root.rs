@@ -9,10 +9,7 @@ use crate::{
 use color_eyre::{eyre::Context, Result};
 use parking_lot::Mutex;
 use parking_lot::RwLock;
-use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
-    Frame,
-};
+use ratatui::prelude::*;
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use tracing::info;
@@ -75,33 +72,33 @@ impl Root {
             State::Home => self.home.handle_event(event),
         }
     }
+}
 
-    pub fn draw(&self, f: &mut Frame, area: Rect) {
-        if let [top, mid, logs, bottom] = *Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(TitleBar::HEIGHT),
-                Constraint::Min(0),
-                Constraint::Length(if self.show_logs { 7 } else { 0 }), // logs
-                Constraint::Length(StatusBar::HEIGHT),
-            ])
-            .split(area)
-        {
-            match self.state {
-                State::Authentication => {
-                    f.render_widget(TitleBar::new(&self.authentication.title()), top);
-                    f.render_widget(StatusBar::new("Loading..."), bottom);
-                    self.authentication.draw(f, mid);
-                }
-                State::Home => {
-                    f.render_widget(TitleBar::new(self.home.title()), top);
-                    f.render_widget(StatusBar::new(self.home.status()), bottom);
-                    self.home.draw(f, mid);
-                }
+impl Widget for &Root {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        use Constraint::*;
+        let log_height = if self.show_logs { 7 } else { 0 };
+        let [top, mid, logs, bottom] = Layout::vertical([
+            Length(TitleBar::HEIGHT),
+            Fill(1),
+            Length(log_height),
+            Length(StatusBar::HEIGHT),
+        ])
+        .areas(area);
+        match self.state {
+            State::Authentication => {
+                TitleBar::new(&self.authentication.title()).render(top, buf);
+                StatusBar::new("Loading...").render(bottom, buf);
+                self.authentication.render(mid, buf);
             }
-            if self.show_logs {
-                f.render_widget(LogWidget::new(self.logs.clone()), logs);
+            State::Home => {
+                TitleBar::new(&self.home.title()).render(top, buf);
+                StatusBar::new(&self.home.status()).render(bottom, buf);
+                self.home.render(mid, buf);
             }
         }
+        if self.show_logs {
+            LogWidget::new(self.logs.clone()).render(logs, buf);
+        };
     }
 }

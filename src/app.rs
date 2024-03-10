@@ -55,7 +55,7 @@ impl App {
     async fn main_loop(&mut self) -> Result<()> {
         loop {
             self.ui.draw(|f| {
-                self.root.draw(f, f.size());
+                f.render_widget(&self.root, f.size());
             })?;
             match self.events.next().await {
                 Some(Event::Quit) => {

@@ -6,15 +6,8 @@ use mastodon_async::{
 };
 use parking_lot::RwLock;
 use ratatui::{
-    buffer::Buffer,
-    layout::Rect,
-    layout::{Constraint, Direction, Layout},
-    style::Color,
-    style::{Modifier, Style},
-    text::Line,
-    text::Span,
-    widgets::Paragraph,
-    Frame,
+    prelude::*,
+    widgets::{Paragraph, Widget},
 };
 use std::sync::Arc;
 use tokio::sync::{
@@ -80,12 +73,6 @@ impl Authentication {
             }
             _ => Outcome::Ignored,
         }
-    }
-
-    pub fn draw(&self, f: &mut Frame, area: Rect) {
-        let error = self.error.read().clone();
-        let widget = Widget::new(error, self.server_url_input.value().to_string());
-        widget.draw(f, area);
     }
 
     pub async fn start(&mut self) -> Result<()> {
@@ -311,56 +298,34 @@ mod server {
     }
 } // mod server
 
-#[derive(Debug, Default)]
-struct Widget {
-    error: Option<String>,
-    server_url: String,
-}
-
-impl Widget {
-    pub const fn new(error: Option<String>, server_url: String) -> Self {
-        Self { error, server_url }
-    }
-
-    pub fn draw(self, f: &mut Frame, area: Rect) {
-        f.render_widget(self, area);
-    }
-}
-
-impl ratatui::widgets::Widget for Widget {
+impl Widget for &Authentication {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let error_height = if self.error.is_some() { 2 } else { 0 };
-        if let [welcome_area, error_area, server_url_area] = *Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3),
-                Constraint::Length(error_height),
-                Constraint::Length(2),
-            ])
-            .split(area)
-            .as_ref()
-        {
-            Paragraph::new("Welcome to toot-rs. Sign in to your mastodon server.\nYou will be redirected to your browser to complete the authentication process.")
-                .render(welcome_area, buf);
+        let error = &self.error.read().clone();
+        let server_url = self.server_url_input.value().to_string();
+        let error_height = if error.is_some() { 2 } else { 0 };
+        use Constraint::*;
+        let [welcome_area, error_area, server_url_area] =
+            Layout::vertical([Length(3), Length(error_height), Length(2)]).areas(area);
+        Paragraph::new("Welcome to toot-rs. Sign in to your mastodon server.\nYou will be redirected to your browser to complete the authentication process.")
+            .render(welcome_area, buf);
 
-            if let Some(error) = self.error {
-                Paragraph::new(Line::from(vec![
-                    Span::styled(
-                        "Error:",
-                        Style::default().add_modifier(Modifier::BOLD).fg(Color::Red),
-                    ),
-                    Span::raw(" "),
-                    Span::raw(error),
-                ]))
-                .render(error_area, buf);
-            }
-
+        if let Some(error) = error {
             Paragraph::new(Line::from(vec![
-                Span::styled("Server URL:", Style::default().add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "Error:",
+                    Style::default().add_modifier(Modifier::BOLD).fg(Color::Red),
+                ),
                 Span::raw(" "),
-                Span::raw(self.server_url),
+                Span::raw(error),
             ]))
-            .render(server_url_area, buf);
+            .render(error_area, buf);
         }
+
+        Paragraph::new(Line::from(vec![
+            Span::styled("Server URL:", Style::default().add_modifier(Modifier::BOLD)),
+            Span::raw(" "),
+            Span::raw(server_url),
+        ]))
+        .render(server_url_area, buf);
     }
 }
