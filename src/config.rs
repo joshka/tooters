@@ -1,4 +1,4 @@
-use color_eyre::{eyre::Context, Result};
+use color_eyre::{eyre::WrapErr, Result};
 use mastodon_async::{data::Data, helpers::toml};
 use tracing::info;
 

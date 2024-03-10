@@ -2,9 +2,9 @@ use crate::{
     event::{Event, Events, Outcome},
     logging::LogMessage,
     root::Root,
-    ui::UI,
+    tui::Tui,
 };
-use color_eyre::{eyre::Context, Result};
+use color_eyre::{eyre::WrapErr, Result};
 use crossterm::event::{
     Event::Key,
     KeyCode::{self, Char},
@@ -27,7 +27,7 @@ pub async fn run(logs: Arc<Mutex<Vec<LogMessage>>>) -> Result<()> {
 
 struct App {
     events: Events,
-    ui: UI,
+    ui: Tui,
     root: Root,
 }
 
@@ -35,28 +35,27 @@ impl App {
     pub fn new(logs: Arc<Mutex<Vec<LogMessage>>>) -> Result<Self> {
         let events = Events::new();
         let root = Root::new(events.tx.clone(), logs);
-        let ui = UI::new().context("Initializing UI failed")?;
+        let ui = Tui::init().wrap_err("Initializing UI failed")?;
         Ok(Self { events, ui, root })
     }
 
     pub async fn run(&mut self) -> Result<()> {
         info!("Starting application");
-        self.ui.start().context("Start UI failed")?;
-        self.events.start().context("Starting events failed")?;
+        self.events.start().wrap_err("Starting events failed")?;
         self.root
             .start()
             .await
-            .context("Starting root component failed")?;
-        self.main_loop().await.context("Running main loop failed")?;
+            .wrap_err("Starting root component failed")?;
+        self.main_loop()
+            .await
+            .wrap_err("Running main loop failed")?;
         info!("Shutting down");
         Ok(())
     }
 
     async fn main_loop(&mut self) -> Result<()> {
         loop {
-            self.ui.draw(|f| {
-                f.render_widget(&self.root, f.size());
-            })?;
+            self.draw()?;
             match self.events.next().await {
                 Some(Event::Quit) => {
                     info!("Received quit event");
@@ -90,6 +89,12 @@ impl App {
                 }
             }
         }
+        Ok(())
+    }
+
+    fn draw(&mut self) -> color_eyre::Result<()> {
+        self.ui
+            .draw(|frame| frame.render_widget(&self.root, frame.size()))?;
         Ok(())
     }
 }

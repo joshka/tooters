@@ -1,5 +1,5 @@
 use crate::{config::Config, event::Event, event::Outcome};
-use color_eyre::{eyre::Context, Result};
+use color_eyre::{eyre::WrapErr, Result};
 use crossterm::event::{Event as CrosstermEvent, KeyCode};
 use mastodon_async::{
     prelude::Account, registration::Registered, scopes::Scopes, Mastodon, Registration,
@@ -115,7 +115,7 @@ async fn load_config_or_authorize(
             info!("Attempting authorization flow. {}", err);
             let mastodon = authorize(server_url_receiver)
                 .await
-                .context("unable to authorize")?;
+                .wrap_err("unable to authorize")?;
             info!("Authorization successful");
             let config = Config::from(mastodon.data.clone());
             if let Err(err) = config.save() {
@@ -129,7 +129,7 @@ async fn load_config_or_authorize(
     let account = mastodon
         .verify_credentials()
         .await
-        .context("failed to verify credentials")?;
+        .wrap_err("failed to verify credentials")?;
     info!("Verified credentials. Logged in as {}", account.username);
     let mut authentication_data = authentication_data.write();
     *authentication_data = Some(State {
@@ -172,7 +172,7 @@ async fn register_client_app(server_url: String) -> Result<Registered> {
         .scopes(Scopes::all())
         .build()
         .await
-        .context(format!("unable to register toot-rs with {server_url}"))
+        .wrap_err(format!("unable to register toot-rs with {server_url}"))
 }
 
 /// Launch a browser to the authorization url and get the auth code from the user
@@ -180,7 +180,7 @@ async fn register_client_app(server_url: String) -> Result<Registered> {
 async fn get_auth_code(registered: &Registered) -> Result<String> {
     let auth_url = registered
         .authorize_url()
-        .context("Registered.authorize_url() is a result but it can't fail ¯\\_(ツ)_/¯")?;
+        .wrap_err("Registered.authorize_url() is a result but it can't fail ¯\\_(ツ)_/¯")?;
     if webbrowser::open(&auth_url).is_ok() {
         info!("Opened browser to {}", auth_url);
     } else {
@@ -188,7 +188,7 @@ async fn get_auth_code(registered: &Registered) -> Result<String> {
     };
     let auth_code = server::get_code()
         .await
-        .context("Error getting auth code from webserver")?;
+        .wrap_err("Error getting auth code from webserver")?;
     Ok(auth_code)
 }
 
@@ -196,7 +196,7 @@ async fn complete_registration(registered: &Registered, code: String) -> Result<
     registered
         .complete(code)
         .await
-        .context("Unable to complete registration with the auth code")
+        .wrap_err("Unable to complete registration with the auth code")
 }
 
 /// a small webserver to listen for the authentication code callback from the
@@ -210,7 +210,7 @@ mod server {
         Router,
     };
     use color_eyre::{
-        eyre::{Context, ContextCompat},
+        eyre::{eyre, WrapErr},
         Result,
     };
     use std::collections::HashMap;
@@ -248,11 +248,11 @@ mod server {
                 shutdown_reciever.recv().await;
             })
             .await
-            .context("Error running webserver")?;
+            .wrap_err("Error running webserver")?;
         code_receiver
             .recv()
             .await
-            .context("Error receiving auth code from webserver")
+            .ok_or(eyre!("Error receiving auth code from webserver"))
     }
 
     /// Handles the `/callback` route for the webserver.
@@ -262,17 +262,17 @@ mod server {
         Query(params): Query<HashMap<String, String>>,
         State(state): State<AppState>,
     ) -> axum::response::Result<&'static str, AppError> {
-        let code = params.get("code").context("No code in query string")?;
+        let code = params.get("code").ok_or(eyre!("No code in query string"))?;
         state
             .code_sender
             .send(code.to_string())
             .await
-            .context("Error sending code to main thread")?;
+            .wrap_err("Error sending code to main thread")?;
         state
             .shutdown_sender
             .send(())
             .await
-            .context("Error sending shutdown signal to webserver")?;
+            .wrap_err("Error sending shutdown signal to webserver")?;
         Ok("Authentication successful! You can close this window now.")
     }
 

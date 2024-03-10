@@ -6,7 +6,7 @@ use crate::{
     widgets::{StatusBar, TitleBar},
 };
 
-use color_eyre::{eyre::Context, Result};
+use color_eyre::{eyre::WrapErr, Result};
 use parking_lot::Mutex;
 use parking_lot::RwLock;
 use ratatui::prelude::*;
@@ -54,7 +54,7 @@ impl Root {
         self.authentication
             .start()
             .await
-            .context("Authentication component failed to start")
+            .wrap_err("Authentication component failed to start")
     }
 
     /// Handles an event.

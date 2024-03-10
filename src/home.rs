@@ -1,5 +1,5 @@
 use color_eyre::{
-    eyre::{bail, Context},
+    eyre::{bail, WrapErr},
     Result,
 };
 use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyModifiers};
@@ -55,7 +55,7 @@ impl Home {
                 .mastodon
                 .get_home_timeline()
                 .await
-                .context("failed to load timeline")?;
+                .wrap_err("failed to load timeline")?;
             self.timeline = Some(page.initial_items);
         } else {
             self.title = "Not logged in".to_string();
