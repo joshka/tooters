@@ -6,7 +6,7 @@ use color_eyre::{
 };
 use ratatui::backend::CrosstermBackend;
 
-/// This replaces the standard color_eyre panic and error hooks with hooks that
+/// This replaces the standard `color_eyre` panic and error hooks with hooks that
 /// restore the terminal before printing the panic or error.
 pub fn install_hooks() -> Result<()> {
     let hook_builder = color_eyre::config::HookBuilder::default();

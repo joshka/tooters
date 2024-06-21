@@ -20,19 +20,16 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(logs: LogCollector) -> Result<Self> {
+    pub fn new(logs: LogCollector) -> Self {
         let events = Events::new();
         let root = Root::new(events.tx.clone(), logs);
-        Ok(Self { events, root })
+        Self { events, root }
     }
 
     pub async fn run(mut self, mut terminal: Terminal) -> Result<()> {
         info!("Starting application");
         self.events.start().wrap_err("Starting events failed")?;
-        self.root
-            .start()
-            .await
-            .wrap_err("Starting root component failed")?;
+        self.root.start();
         self.main_loop(&mut terminal)
             .await
             .wrap_err("Running main loop failed")?;

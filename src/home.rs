@@ -45,7 +45,7 @@ impl Home {
     pub async fn start(&mut self) -> Result<()> {
         info!("Starting home component");
         let auth = Arc::clone(&self.authentication_data);
-        let auth = auth.read().unwrap().clone(); // easy way to avoid holding the lock over the await below
+        let auth = auth.read().expect("lock poisoned").clone(); // easy way to avoid holding the lock over the await below
         if let Some(auth) = auth {
             let username = auth.account.username.clone();
             let server = auth.config.data.base.trim_start_matches("https://");
@@ -86,18 +86,20 @@ impl Home {
     fn scroll_down(&mut self) {
         // self.selected += 1;
         let list_state = Arc::clone(&self.list_state);
-        let mut list_state = list_state.write().unwrap();
+        let mut list_state = list_state.write().expect("lock poisoned");
         let index = list_state.selected().map_or(0, |s| s + 1);
         list_state.select(Some(index));
+        drop(list_state); // release the lock before calling update_status(
         self.update_status(index);
     }
 
     fn scroll_up(&mut self) {
         // self.selected = self.selected.saturating_sub(1);
         let list_state = Arc::clone(&self.list_state);
-        let mut list_state = list_state.write().unwrap();
+        let mut list_state = list_state.write().expect("lock poisoned");
         let index = list_state.selected().map_or(0, |s| s.saturating_sub(1));
         list_state.select(Some(index));
+        drop(list_state); // release the lock before calling update_status(
         self.update_status(index);
     }
 
@@ -149,7 +151,7 @@ impl Widget for &Home {
         // let mut state = ListState::default();
         // state.select(Some(self.selected));
         let list_state = Arc::clone(&self.list_state);
-        let mut state = list_state.write().unwrap();
+        let mut state = list_state.write().expect("lock poisoned");
         StatefulWidget::render(list, area, buf, &mut state);
     }
 }

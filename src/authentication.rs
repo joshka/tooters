@@ -23,7 +23,7 @@ pub struct Authentication {
     server_url_sender: Sender<String>,
     server_url_receiver: Arc<Mutex<Receiver<String>>>,
     error: Arc<RwLock<Option<String>>>,
-    authentication_data: Arc<RwLock<Option<State>>>,
+    state: Arc<RwLock<Option<State>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -45,7 +45,7 @@ impl Authentication {
             server_url_sender,
             server_url_receiver: Arc::new(Mutex::new(server_url_receiver)),
             error: Arc::new(RwLock::new(None)),
-            authentication_data,
+            state: authentication_data,
         }
     }
 
@@ -74,10 +74,10 @@ impl Authentication {
         }
     }
 
-    pub async fn start(&mut self) -> Result<()> {
+    pub fn start(&mut self) {
         info!("Starting authentication component");
         let error = Arc::clone(&self.error);
-        let authentication_data = Arc::clone(&self.authentication_data);
+        let authentication_data = Arc::clone(&self.state);
         let server_url_receiver = self.server_url_receiver.clone();
         let event_sender = self.event_sender.clone();
         tokio::spawn(async move {
@@ -85,7 +85,7 @@ impl Authentication {
                 let server_url_receiver = server_url_receiver.clone();
                 let authentication_data = authentication_data.clone();
                 match load_config_or_authorize(server_url_receiver, authentication_data).await {
-                    Ok(_) => break,
+                    Ok(()) => break,
                     Err(e) => {
                         warn!("Authentication attempt failed: {:#}", e);
                         display_error(&e, &error);
@@ -96,12 +96,11 @@ impl Authentication {
                 error!("Error sending authentication success message: {:?}", err);
             }
         });
-        Ok(())
     }
 }
 
 fn display_error(e: &color_eyre::eyre::Error, error: &Arc<RwLock<Option<String>>>) {
-    *error.write().unwrap() = Some(e.to_string());
+    *error.write().expect("lock poisoned") = Some(e.to_string());
 }
 
 async fn load_config_or_authorize(
@@ -130,8 +129,7 @@ async fn load_config_or_authorize(
         .await
         .wrap_err("failed to verify credentials")?;
     info!("Verified credentials. Logged in as {}", account.username);
-    let mut authentication_data = authentication_data.write().unwrap();
-    *authentication_data = Some(State {
+    *authentication_data.write().expect("lock poisoned") = Some(State {
         mastodon: mastodon.clone(),
         config,
         account,
@@ -299,10 +297,10 @@ mod server {
 
 impl Widget for &Authentication {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let error = &self.error.read().unwrap().clone();
+        use Constraint::Length;
+        let error = &self.error.read().expect("lock poisoned").clone();
         let server_url = self.server_url_input.value().to_string();
         let error_height = if error.is_some() { 2 } else { 0 };
-        use Constraint::*;
         let [welcome_area, error_area, server_url_area] =
             Layout::vertical([Length(3), Length(error_height), Length(2)]).areas(area);
         Paragraph::new("Welcome to tooters. Sign in to your mastodon server.\nYou will be redirected to your browser to complete the authentication process.")

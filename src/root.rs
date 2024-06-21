@@ -6,7 +6,6 @@ use crate::{
     widgets::{StatusBar, TitleBar},
 };
 
-use color_eyre::{eyre::WrapErr, Result};
 use ratatui::prelude::*;
 use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::Sender;
@@ -47,12 +46,9 @@ impl Root {
         }
     }
 
-    pub async fn start(&mut self) -> Result<()> {
+    pub fn start(&mut self) {
         info!("Starting root component");
-        self.authentication
-            .start()
-            .await
-            .wrap_err("Authentication component failed to start")
+        self.authentication.start();
     }
 
     /// Handles an event.
@@ -74,7 +70,7 @@ impl Root {
 
 impl Widget for &Root {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        use Constraint::*;
+        use Constraint::{Fill, Length};
         let log_height = if self.show_logs { 7 } else { 0 };
         let [top, mid, logs, bottom] = Layout::vertical([
             Length(TitleBar::HEIGHT),

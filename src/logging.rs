@@ -21,8 +21,13 @@ use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
 /// Sets up logging to a file and a collector for the logs that can be used to display them in the
 /// UI.
 ///
-/// Returns a tuple containing the logs and a WorkerGuard which ensures that buffered logs are
+/// Returns a tuple containing the logs and a `WorkerGuard` which ensures that buffered logs are
 /// flushed to their output in the case of abrupt terminations of a process.
+///
+/// # Errors
+///
+/// Returns an error if the environment filter could not be built or if the XDG base directories
+/// could not be retrieved.
 pub fn init() -> Result<(LogCollector, WorkerGuard)> {
     let env_filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
@@ -67,12 +72,23 @@ pub struct LogMessage {
 }
 
 impl LogCollector {
+    /// Returns the last `n` log messages.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the lock on the logs is poisoned.
+    #[must_use]
     pub fn last_n(&self, n: usize) -> Vec<LogMessage> {
         let logs = self.logs.read().expect("failed to lock logs");
         let start_index = logs.len().saturating_sub(n);
         logs[start_index..].to_vec()
     }
 
+    /// Pushes a log message into the collector.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the lock on the logs is poisoned.
     pub fn push(&self, log: LogMessage) {
         let mut logs = self.logs.write().expect("failed to lock logs");
         logs.push(log);
@@ -135,7 +151,7 @@ impl Widget for &LogCollector {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let max_lines = area.height as usize;
         let logs = self.last_n(max_lines);
-        let text = Text::from_iter(logs.iter().map(LogMessage::to_line));
+        let text: Text = logs.iter().map(LogMessage::to_line).collect();
         Paragraph::new(text)
             .block(Block::default().borders(Borders::ALL).title("Logs"))
             .alignment(Alignment::Left)
@@ -144,7 +160,7 @@ impl Widget for &LogCollector {
     }
 }
 
-fn level_color(level: Level) -> Color {
+const fn level_color(level: Level) -> Color {
     match level {
         Level::ERROR => Color::Red,
         Level::WARN => Color::Yellow,

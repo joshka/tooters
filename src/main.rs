@@ -19,7 +19,7 @@ async fn main() -> color_eyre::Result<()> {
     let backend = CrosstermBackend::stdout().wrap_err("backend init failed")?;
     let terminal = Terminal::new(backend).wrap_err("terminal init failed")?;
 
-    let app = App::new(logs)?;
+    let app = App::new(logs);
     app.run(terminal).await?;
     Ok(())
 }
