@@ -2,12 +2,11 @@ use crate::{
     authentication::Authentication,
     event::{Event, Outcome},
     home::Home,
-    logging::{LogMessage, LogWidget},
+    logging::LogCollector,
     widgets::{StatusBar, TitleBar},
 };
 
 use color_eyre::{eyre::WrapErr, Result};
-use parking_lot::Mutex;
 use parking_lot::RwLock;
 use ratatui::prelude::*;
 use std::sync::Arc;
@@ -24,7 +23,7 @@ pub struct Root {
     state: State,
     authentication: Authentication,
     home: Home,
-    logs: Arc<Mutex<Vec<LogMessage>>>,
+    logs: LogCollector,
     show_logs: bool,
 }
 
@@ -32,7 +31,7 @@ pub struct Root {
 /// It is responsible for starting and stopping all other components.
 /// It is also responsible for handling events and drawing the UI.
 impl Root {
-    pub fn new(event_sender: Sender<Event>, logs: Arc<Mutex<Vec<LogMessage>>>) -> Self {
+    pub fn new(event_sender: Sender<Event>, logs: LogCollector) -> Self {
         let authentication_data = Arc::new(RwLock::new(None));
         let authentication =
             Authentication::new(event_sender.clone(), Arc::clone(&authentication_data));
@@ -98,7 +97,7 @@ impl Widget for &Root {
             }
         }
         if self.show_logs {
-            LogWidget::new(self.logs.clone()).render(logs, buf);
+            self.logs.render(logs, buf);
         };
     }
 }

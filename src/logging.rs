@@ -1,15 +1,15 @@
 use color_eyre::{eyre::WrapErr, Result};
-use parking_lot::Mutex;
-use std::sync::Arc;
-use tracing::metadata::LevelFilter;
+use std::sync::{Arc, RwLock};
+use tracing::{metadata::LevelFilter, Level};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter, Registry};
+use xdg::BaseDirectories;
 
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Rect},
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
+    style::{Color, Stylize},
+    text::{Line, Text},
     widgets::{Block, Borders, Paragraph, Widget, Wrap},
 };
 use tracing::{
@@ -18,55 +18,64 @@ use tracing::{
 };
 use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
 
-/// Sets up logging to a file and a collector for the logs that can be used to
-/// display them in the UI.
+/// Sets up logging to a file and a collector for the logs that can be used to display them in the
+/// UI.
 ///
-/// Returns a tuple containing the logs and a WorkerGuard which ensures that
-/// buffered logs are flushed to their output in the case of abrupt terminations
-/// of a process.
-pub fn init() -> Result<(Arc<Mutex<Vec<LogMessage>>>, WorkerGuard)> {
-    let log_folder = xdg::BaseDirectories::with_prefix("tooters")
-        .wrap_err("failed to get XDG base directories")?
-        .get_state_home();
-    let file_appender = tracing_appender::rolling::hourly(log_folder, "tooters.log");
-    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
-
+/// Returns a tuple containing the logs and a WorkerGuard which ensures that buffered logs are
+/// flushed to their output in the case of abrupt terminations of a process.
+pub fn init() -> Result<(LogCollector, WorkerGuard)> {
     let env_filter = EnvFilter::builder()
         .with_default_directive(LevelFilter::INFO.into())
         .from_env()
         .wrap_err("failed to build env filter")?;
+
+    let log_folder = BaseDirectories::with_prefix("tooters")
+        .wrap_err("failed to get XDG base directories")?
+        .get_state_home(); // usually this will be ~/.local/state/tooters
+    let file_appender = tracing_appender::rolling::hourly(log_folder, "tooters.log");
+    let (file_appender, guard) = tracing_appender::non_blocking(file_appender);
     let file_layer = fmt::layer()
-        .with_writer(non_blocking)
+        .with_writer(file_appender)
         .with_timer(tracing_subscriber::fmt::time::uptime());
+
     let log_collector = LogCollector::default();
-    let logs = log_collector.logs();
 
     let subscriber = Registry::default()
         .with(env_filter)
         .with(file_layer)
-        .with(log_collector);
+        .with(log_collector.clone());
 
     tracing::subscriber::set_global_default(subscriber)
         .wrap_err("setting default subscriber failed")?;
 
-    Ok((logs, guard))
+    Ok((log_collector, guard))
 }
 
-#[derive(Default)]
+/// Thread-safe log collector
+#[derive(Debug, Default, Clone)]
 pub struct LogCollector {
-    logs: Arc<Mutex<Vec<LogMessage>>>,
+    logs: Arc<RwLock<Vec<LogMessage>>>,
 }
 
+/// Log message struct that contains the log level, target, and message.
+#[derive(Debug, Clone)]
 pub struct LogMessage {
-    pub level: String,
+    pub level: Level,
     pub target: String,
     pub message: String,
+    pub fields: Vec<(String, String)>,
 }
 
 impl LogCollector {
-    #[must_use]
-    pub fn logs(&self) -> Arc<Mutex<Vec<LogMessage>>> {
-        self.logs.clone()
+    pub fn last_n(&self, n: usize) -> Vec<LogMessage> {
+        let logs = self.logs.read().expect("failed to lock logs");
+        let start_index = logs.len().saturating_sub(n);
+        logs[start_index..].to_vec()
+    }
+
+    pub fn push(&self, log: LogMessage) {
+        let mut logs = self.logs.write().expect("failed to lock logs");
+        logs.push(log);
     }
 }
 
@@ -75,81 +84,72 @@ where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
     fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
-        let mut logs = self.logs.lock();
-        let metadata = event.metadata();
-        let level = metadata.level().to_string();
-        let target = metadata.target();
-        let mut visitor = MessageVisitor::default();
-        event.record(&mut visitor);
-        let message = visitor.message;
-        let log = LogMessage {
-            level,
-            target: target.to_string(),
-            message,
-        };
-        logs.push(log);
+        self.push(LogMessage::from(event));
     }
 }
 
-#[derive(Default)]
-struct MessageVisitor {
-    message: String,
+impl LogMessage {
+    fn new(level: Level, target: String) -> Self {
+        Self {
+            level,
+            target,
+            message: String::new(),
+            fields: Vec::new(),
+        }
+    }
+
+    fn to_line(&self) -> Line {
+        Line::from_iter([
+            self.level.as_str().fg(level_color(self.level)),
+            " ".into(),
+            self.target.as_str().dim(),
+            ": ".dim(),
+            self.message.as_str().into(),
+        ])
+    }
 }
 
-impl Visit for MessageVisitor {
+impl From<&Event<'_>> for LogMessage {
+    fn from(event: &Event) -> Self {
+        let metadata = event.metadata();
+        let level = metadata.level().to_owned();
+        let target = metadata.target().to_owned();
+        let mut message = Self::new(level, target);
+        event.record(&mut message);
+        message
+    }
+}
+
+impl Visit for LogMessage {
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         if field.name() == "message" {
             self.message = format!("{value:?}");
+        } else {
+            self.fields
+                .push((field.name().to_string(), format!("{value:?}")));
         }
     }
 }
 
-pub struct LogWidget {
-    logs: Arc<Mutex<Vec<LogMessage>>>,
-}
-
-impl LogWidget {
-    pub fn new(logs: Arc<Mutex<Vec<LogMessage>>>) -> Self {
-        Self { logs }
+impl Widget for &LogCollector {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let max_lines = area.height as usize;
+        let logs = self.last_n(max_lines);
+        let text = Text::from_iter(logs.iter().map(LogMessage::to_line));
+        Paragraph::new(text)
+            .block(Block::default().borders(Borders::ALL).title("Logs"))
+            .alignment(Alignment::Left)
+            .wrap(Wrap { trim: true })
+            .render(area, buf);
     }
 }
 
-impl Widget for LogWidget {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        let logs = self.logs.lock();
-        let max_lines = area.height as usize;
-        let start_index = if logs.len() > max_lines {
-            logs.len() - max_lines
-        } else {
-            0
-        };
-
-        let text = logs[start_index..]
-            .iter()
-            .map(|log| {
-                let level_color = match log.level.as_str() {
-                    "ERROR" => Color::Red,
-                    "WARN" => Color::Yellow,
-                    "INFO" => Color::Green,
-                    "DEBUG" => Color::Blue,
-                    "TRACE" => Color::Cyan,
-                    _ => Color::White,
-                };
-                Line::from(vec![
-                    Span::styled(&log.level, Style::default().fg(level_color)),
-                    Span::raw(" "),
-                    Span::styled(&log.target, Style::default().add_modifier(Modifier::DIM)),
-                    Span::styled(": ", Style::default().add_modifier(Modifier::DIM)),
-                    Span::styled(&log.message, Style::default()),
-                ])
-            })
-            .collect::<Vec<_>>();
-
-        let paragraph = Paragraph::new(text)
-            .block(Block::default().borders(Borders::ALL).title("Logs"))
-            .alignment(Alignment::Left)
-            .wrap(Wrap { trim: true });
-
-        paragraph.render(area, buf);
+fn level_color(level: Level) -> Color {
+    match level {
+        Level::ERROR => Color::Red,
+        Level::WARN => Color::Yellow,
+        Level::INFO => Color::Green,
+        Level::DEBUG => Color::Blue,
+        Level::TRACE => Color::Cyan,
     }
 }

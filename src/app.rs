@@ -1,6 +1,6 @@
 use crate::{
     event::{Event, Events, Outcome},
-    logging::LogMessage,
+    logging::LogCollector,
     root::Root,
 };
 use color_eyre::{eyre::WrapErr, Result};
@@ -8,9 +8,8 @@ use crossterm::event::{
     Event::Key,
     KeyCode::{self, Char},
 };
-use parking_lot::Mutex;
 use ratatui::backend::CrosstermBackend;
-use std::{io::Stdout, sync::Arc};
+use std::io::Stdout;
 use tracing::{debug, error, info, trace};
 
 pub type Terminal = ratatui::Terminal<CrosstermBackend<Stdout>>;
@@ -21,7 +20,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(logs: Arc<Mutex<Vec<LogMessage>>>) -> Result<Self> {
+    pub fn new(logs: LogCollector) -> Result<Self> {
         let events = Events::new();
         let root = Root::new(events.tx.clone(), logs);
         Ok(Self { events, root })
@@ -81,7 +80,9 @@ impl App {
     }
 
     fn draw(&mut self, terminal: &mut Terminal) -> color_eyre::Result<()> {
-        terminal.draw(|frame| frame.render_widget(&self.root, frame.size()))?;
+        terminal
+            .draw(|frame| frame.render_widget(&self.root, frame.size()))
+            .wrap_err("failed to draw")?;
         Ok(())
     }
 }
