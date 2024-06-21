@@ -92,8 +92,8 @@ impl Widget for &Root {
                 self.authentication.render(mid, buf);
             }
             State::Home => {
-                TitleBar::new(&self.home.title()).render(top, buf);
-                StatusBar::new(&self.home.status()).render(bottom, buf);
+                TitleBar::new(self.home.title()).render(top, buf);
+                StatusBar::new(self.home.status()).render(bottom, buf);
                 self.home.render(mid, buf);
             }
         }
