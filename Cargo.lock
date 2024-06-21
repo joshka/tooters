@@ -2807,7 +2807,6 @@ dependencies = [
  "indoc",
  "mastodon-async",
  "megalodon",
- "parking_lot",
  "ratatui",
  "signal-hook",
  "signal-hook-tokio",

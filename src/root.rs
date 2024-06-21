@@ -7,9 +7,8 @@ use crate::{
 };
 
 use color_eyre::{eyre::WrapErr, Result};
-use parking_lot::RwLock;
 use ratatui::prelude::*;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tokio::sync::mpsc::Sender;
 use tracing::info;
 

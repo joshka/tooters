@@ -17,7 +17,6 @@ futures = "0.3.30"
 html2text = "0.12.4"
 tui-input = "0.8.0"
 mastodon-async = { version = "1.3.2", features = ["toml"] }
-parking_lot = "0.12.3"
 ratatui = { version = "0.26.3", git = "https://github.com/ratatui-org/ratatui", branch = "jm/crossterm-init" }
 signal-hook = "0.3.17"
 signal-hook-tokio = { version = "0.3.1", features = ["futures-v0_3"] }

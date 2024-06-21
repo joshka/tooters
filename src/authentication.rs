@@ -4,12 +4,11 @@ use crossterm::event::{Event as CrosstermEvent, KeyCode};
 use mastodon_async::{
     prelude::Account, registration::Registered, scopes::Scopes, Mastodon, Registration,
 };
-use parking_lot::RwLock;
 use ratatui::{
     prelude::*,
     widgets::{Paragraph, Widget},
 };
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tokio::sync::{
     mpsc::{self, Receiver, Sender},
     Mutex,
@@ -102,7 +101,7 @@ impl Authentication {
 }
 
 fn display_error(e: &color_eyre::eyre::Error, error: &Arc<RwLock<Option<String>>>) {
-    *error.write() = Some(e.to_string());
+    *error.write().unwrap() = Some(e.to_string());
 }
 
 async fn load_config_or_authorize(
@@ -131,7 +130,7 @@ async fn load_config_or_authorize(
         .await
         .wrap_err("failed to verify credentials")?;
     info!("Verified credentials. Logged in as {}", account.username);
-    let mut authentication_data = authentication_data.write();
+    let mut authentication_data = authentication_data.write().unwrap();
     *authentication_data = Some(State {
         mastodon: mastodon.clone(),
         config,
@@ -300,7 +299,7 @@ mod server {
 
 impl Widget for &Authentication {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let error = &self.error.read().clone();
+        let error = &self.error.read().unwrap().clone();
         let server_url = self.server_url_input.value().to_string();
         let error_height = if error.is_some() { 2 } else { 0 };
         use Constraint::*;
