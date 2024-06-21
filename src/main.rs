@@ -42,15 +42,19 @@ fn setup_logging() -> Result<(Arc<Mutex<Vec<LogMessage>>>, WorkerGuard)> {
     let file_appender = tracing_appender::rolling::hourly(log_folder, "tooters.log");
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
+    let env_filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env()
+        .wrap_err("failed to build env filter")?;
+    let file_layer = fmt::layer()
+        .with_writer(non_blocking)
+        .with_timer(tracing_subscriber::fmt::time::uptime());
     let log_collector = LogCollector::default();
     let logs = log_collector.logs();
+
     let subscriber = Registry::default()
-        .with(EnvFilter::from_default_env().add_directive(LevelFilter::INFO.into()))
-        .with(
-            fmt::layer()
-                .with_writer(non_blocking)
-                .with_timer(tracing_subscriber::fmt::time::uptime()),
-        )
+        .with(env_filter)
+        .with(file_layer)
         .with(log_collector);
 
     tracing::subscriber::set_global_default(subscriber)
@@ -62,18 +66,15 @@ fn setup_logging() -> Result<(Arc<Mutex<Vec<LogMessage>>>, WorkerGuard)> {
 /// This replaces the standard color_eyre panic and error hooks with hooks that
 /// restore the terminal before printing the panic or error.
 pub fn install_hooks() -> Result<()> {
-    // add any extra configuration you need to the hook builder
     let hook_builder = color_eyre::config::HookBuilder::default();
     let (panic_hook, eyre_hook) = hook_builder.into_hooks();
 
-    // convert from a color_eyre PanicHook to a standard panic hook
     let panic_hook = panic_hook.into_panic_hook();
     panic::set_hook(Box::new(move |panic_info| {
         tui::restore().unwrap();
         panic_hook(panic_info);
     }));
 
-    // convert from a color_eyre EyreHook to a eyre ErrorHook
     let eyre_hook = eyre_hook.into_eyre_hook();
     eyre::set_hook(Box::new(move |error| {
         tui::restore().unwrap();
