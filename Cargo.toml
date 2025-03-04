@@ -4,24 +4,24 @@ version = "0.1.0"
 edition = "2021"
 license-file = "LICENSE.txt"
 description = "A Rust TUI Mastodon App"
-homepage = "https://toot.rs"
 repository = "https://github.com/joshka/tooters"
 readme = "README.md"
 keywords = ["mastodon", "tui", "cli"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-axum = { version = "0.7.5", features = ["tokio"] }
-crossterm = { version = "0.27.0", features = ["event-stream"] }
-futures = "0.3.30"
-html2text = "0.12.4"
-tui-input = "0.8.0"
+axum = { version = "0.8.1", features = ["tokio"] }
+color-eyre = "0.6.3"
+crossterm = { version = "0.28.1", features = ["event-stream"] }
+futures = "0.3.31"
+html2text = "0.14.1"
 mastodon-async = { version = "1.3.2", features = ["toml"] }
-ratatui = { version = "0.26.3", git = "https://github.com/ratatui-org/ratatui", branch = "jm/crossterm-init" }
+megalodon = "1.0.0"
+ratatui = { version = "0.29.0" }
 signal-hook = "0.3.17"
 signal-hook-tokio = { version = "0.3.1", features = ["futures-v0_3"] }
-time = "0.3.36"
-tokio = { version = "1.38.0", features = [
+time = "0.3.37"
+tokio = { version = "1.43.0", features = [
   "macros",
   "rt-multi-thread",
   "signal",
@@ -29,18 +29,17 @@ tokio = { version = "1.38.0", features = [
   "time",
   "tracing",
 ] }
-tracing = "0.1.40"
+tracing = "0.1.41"
 tracing-appender = "0.2.3"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 tracing-log = "0.2.0"
-webbrowser = "1.0.1"
+tui-input = "0.11.1"
+webbrowser = "1.0.3"
 xdg = "2.5.2"
-color-eyre = "0.6.3"
-megalodon = "0.13.7"
 
 [dev-dependencies]
-tempfile = "3.10.1"
-indoc = "2.0.5"
+tempfile = "3.17.1"
+indoc = "2.0.6"
 
 # The profile that 'cargo dist' will build with
 [profile.dist]

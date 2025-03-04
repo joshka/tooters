@@ -5,8 +5,11 @@ use color_eyre::{
 use crossterm::event::{Event as CrosstermEvent, KeyCode, KeyModifiers};
 use mastodon_async::prelude::Status;
 use ratatui::{
-    prelude::{Buffer, *},
-    widgets::{List, ListItem, ListState},
+    buffer::Buffer,
+    layout::Rect,
+    style::{Color, Modifier, Style},
+    text::{Line, Span, Text},
+    widgets::{List, ListItem, ListState, StatefulWidget, Widget},
 };
 use std::sync::{Arc, RwLock};
 use time::format_description;
@@ -173,7 +176,7 @@ fn format_status(status: &Status, width: u16) -> Text {
         ),
     ]));
     let html = reblog.map_or(status.content.clone(), |reblog| reblog.content.clone());
-    let content = html2text::from_read(html.as_bytes(), width as usize);
+    let content = html2text::from_read(html.as_bytes(), width as usize).unwrap();
     text.extend(Text::from(content));
     text.extend(Text::raw(""));
     text

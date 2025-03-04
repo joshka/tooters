@@ -78,7 +78,7 @@ impl App {
 
     fn draw(&mut self, terminal: &mut Terminal) -> color_eyre::Result<()> {
         terminal
-            .draw(|frame| frame.render_widget(&self.root, frame.size()))
+            .draw(|frame| frame.render_widget(&self.root, frame.area()))
             .wrap_err("failed to draw")?;
         Ok(())
     }
