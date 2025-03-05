@@ -1,4 +1,5 @@
-use crate::{config::Config, event::Event, event::Outcome};
+use std::sync::{Arc, RwLock};
+
 use color_eyre::{eyre::WrapErr, Result};
 use crossterm::event::{Event as CrosstermEvent, KeyCode};
 use mastodon_async::{
@@ -8,13 +9,17 @@ use ratatui::{
     prelude::*,
     widgets::{Paragraph, Widget},
 };
-use std::sync::{Arc, RwLock};
 use tokio::sync::{
     mpsc::{self, Receiver, Sender},
     Mutex,
 };
 use tracing::{debug, error, info, trace, warn};
 use tui_input::{backend::crossterm::EventHandler, Input};
+
+use crate::{
+    config::Config,
+    event::{Event, Outcome},
+};
 
 #[derive(Debug)]
 pub struct Authentication {
@@ -199,6 +204,8 @@ async fn complete_registration(registered: &Registered, code: String) -> Result<
 /// a small webserver to listen for the authentication code callback from the
 /// mastodon server
 mod server {
+    use std::collections::HashMap;
+
     use axum::{
         extract::{Query, State},
         http::StatusCode,
@@ -210,7 +217,6 @@ mod server {
         eyre::{eyre, WrapErr},
         Result,
     };
-    use std::collections::HashMap;
     use tokio::sync::mpsc::{channel, Sender};
     use tracing::info;
 
@@ -276,7 +282,8 @@ mod server {
     /// helper type to convert `eyre::Error`s into responses
     struct AppError(color_eyre::eyre::Error);
 
-    /// Implements `IntoResponse` for `AppError`, converting it into a response with status code 500.
+    /// Implements `IntoResponse` for `AppError`, converting it into a response with status code
+    /// 500.
     impl IntoResponse for AppError {
         fn into_response(self) -> Response {
             (StatusCode::INTERNAL_SERVER_ERROR, self.0.to_string()).into_response()

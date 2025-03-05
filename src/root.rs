@@ -1,3 +1,9 @@
+use std::sync::{Arc, RwLock};
+
+use ratatui::prelude::*;
+use tokio::sync::mpsc::Sender;
+use tracing::info;
+
 use crate::{
     authentication::Authentication,
     event::{Event, Outcome},
@@ -5,11 +11,6 @@ use crate::{
     logging::LogCollector,
     widgets::{StatusBar, TitleBar},
 };
-
-use ratatui::prelude::*;
-use std::sync::{Arc, RwLock};
-use tokio::sync::mpsc::Sender;
-use tracing::info;
 
 enum State {
     Authentication,

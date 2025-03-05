@@ -1,10 +1,6 @@
-use color_eyre::{eyre::WrapErr, Result};
 use std::sync::{Arc, RwLock};
-use tracing::{metadata::LevelFilter, Level};
-use tracing_appender::non_blocking::WorkerGuard;
-use tracing_subscriber::{fmt, prelude::*, EnvFilter, Registry};
-use xdg::BaseDirectories;
 
+use color_eyre::{eyre::WrapErr, Result};
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Rect},
@@ -14,9 +10,14 @@ use ratatui::{
 };
 use tracing::{
     field::{Field, Visit},
-    Event, Subscriber,
+    metadata::LevelFilter,
+    Event, Level, Subscriber,
 };
-use tracing_subscriber::{layer::Context, registry::LookupSpan, Layer};
+use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::{
+    fmt, layer::Context, prelude::*, registry::LookupSpan, EnvFilter, Layer, Registry,
+};
+use xdg::BaseDirectories;
 
 /// Sets up logging to a file and a collector for the logs that can be used to display them in the
 /// UI.

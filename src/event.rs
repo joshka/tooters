@@ -1,17 +1,18 @@
+use std::time::Duration;
+
 use color_eyre::Result;
 use crossterm::event::{Event as CrosstermEvent, EventStream};
 use futures::StreamExt;
 use signal_hook::consts::{SIGHUP, SIGINT, SIGQUIT, SIGTERM};
 use signal_hook_tokio::Signals;
-use std::time::Duration;
 use tokio::{
     sync::mpsc::{channel, Receiver, Sender},
-    task::JoinHandle,
     time::interval,
 };
 use tracing::{error, info, trace};
 
-const TICK_RATE: Duration = Duration::from_millis(250);
+/// The tick rate for the tick event (60fps)
+const TICK_RATE: Duration = Duration::from_millis(1000 / 60);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
@@ -37,75 +38,58 @@ impl Events {
         Self { tx, rx }
     }
 
-    pub fn start(&self) -> Result<()> {
+    pub fn start(&self) {
         info!("Starting event loop");
-        self.spawn_tick_task();
-        self.spawn_signal_task()?;
-        self.spawn_crossterm_task();
-        Ok(())
+        tokio::spawn(Self::tick_task(self.tx.clone()));
+        tokio::spawn(Self::signal_task(self.tx.clone()));
+        tokio::spawn(Self::crossterm_task(self.tx.clone()));
     }
 
     /// Returns the next event
-    /// This function is async and will block until an event is received
-    /// or the channel is closed.
-    /// If the channel is closed, `None` is returned.
-    /// If the channel is not closed, `Some(Event)` is returned.
     pub async fn next(&mut self) -> Option<Event> {
         self.rx.recv().await
     }
 
     /// Sends a tick event every `tick_rate`
-    fn spawn_tick_task(&self) -> JoinHandle<()> {
-        let tx = self.tx.clone();
+    async fn tick_task(tx: Sender<Event>) {
         let mut interval = interval(TICK_RATE);
-        tokio::spawn(async move {
-            loop {
-                interval.tick().await;
-                trace!("tick");
-                if tx.send(Event::Tick).await.is_err() {
-                    error!("Failed to send tick event");
-                    break;
-                }
+        loop {
+            interval.tick().await;
+            trace!("tick");
+            if tx.send(Event::Tick).await.is_err() {
+                break;
             }
-        })
+        }
     }
 
     /// Handle signals so killing the process cleans up the terminal correctly
-    fn spawn_signal_task(&self) -> Result<JoinHandle<()>> {
-        let tx = self.tx.clone();
+    async fn signal_task(tx: Sender<Event>) -> Result<()> {
         let mut signals = Signals::new([SIGHUP, SIGTERM, SIGINT, SIGQUIT])?;
-        Ok(tokio::spawn(async move {
-            while let Some(signal) = signals.next().await {
-                match signal {
-                    SIGTERM | SIGINT | SIGQUIT => {
-                        info!("Received signal {}, shutting down", signal);
-                        // Shutdown the system;
-                        if tx.send(Event::Quit).await.is_err() {
-                            error!("Failed to send quit event");
-                            break;
-                        }
-                    }
-                    _ => {
-                        error!("Received unexpected signal {}", signal);
+        while let Some(signal) = signals.next().await {
+            match signal {
+                SIGTERM | SIGINT | SIGQUIT => {
+                    info!("Received signal {}, shutting down", signal);
+                    if tx.send(Event::Quit).await.is_err() {
+                        break;
                     }
                 }
+                _ => {
+                    error!("Received unexpected signal {}", signal);
+                }
             }
-        }))
+        }
+        Ok(())
     }
 
     /// Sends crossterm events to the event channel
-    fn spawn_crossterm_task(&self) -> JoinHandle<()> {
-        let tx = self.tx.clone();
+    async fn crossterm_task(tx: Sender<Event>) {
         let mut events = EventStream::new();
-        tokio::spawn(async move {
-            while let Some(Ok(event)) = events.next().await {
-                trace!(crossterm_event = ?event);
-                if tx.send(Event::Crossterm(event)).await.is_err() {
-                    error!("Failed to send event to channel");
-                    break;
-                }
+        while let Some(Ok(event)) = events.next().await {
+            trace!(crossterm_event = ?event);
+            if tx.send(Event::Crossterm(event)).await.is_err() {
+                break;
             }
-        })
+        }
     }
 }
 

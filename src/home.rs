@@ -1,3 +1,5 @@
+use std::sync::{Arc, RwLock};
+
 use color_eyre::{
     eyre::{bail, Context},
     Result,
@@ -11,7 +13,6 @@ use ratatui::{
     text::{Line, Span, Text},
     widgets::{List, ListItem, ListState, StatefulWidget, Widget},
 };
-use std::sync::{Arc, RwLock};
 use time::format_description;
 use tokio::sync::mpsc::Sender;
 use tracing::info;
@@ -108,7 +109,8 @@ impl Home {
 
     fn update_status(&mut self, selected: usize) {
         if let Some(timeline) = &self.timeline {
-            // let selected = Arc::clone(&self.list_state).read().map_or(0, |s| s.selected().unwrap_or_default());
+            // let selected = Arc::clone(&self.list_state).read().map_or(0, |s|
+            // s.selected().unwrap_or_default());
             if let Some(status) = timeline.get(selected) {
                 let date_format =
                     format_description::parse("[year]-[month]-[day] [hour]:[minute]:[second]")
